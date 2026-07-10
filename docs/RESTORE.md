@@ -5,6 +5,11 @@ compose service (cron: 08:15 UTC, see `infra/backup/crontab`), named
 `cockpit-<UTC-stamp>.sql.gz` in bucket `broker-cockpit-backups`, with 30-day
 retention enforced by the same job.
 
+> Commands below use `docker compose` (the plugin bundled with fresh Docker
+> installs). On hosts that only have the standalone binary (e.g. the local
+> colima dev Mac), substitute `docker-compose`. `scripts/restore-drill.sh`
+> auto-detects whichever is present.
+
 ## Cold restore (new VPS, total loss of old host)
 
 Assumes: your password manager holds every value in `.env.example`
