@@ -1,0 +1,1 @@
+15 8 * * * PGPASSWORD=$POSTGRES_PASSWORD /usr/local/bin/backup.sh

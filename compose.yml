@@ -24,6 +24,11 @@ services:
       AUTO_RESTART_TIME: "11:59 PM"
       RELOGIN_AFTER_TWOFA_TIMEOUT: "yes"
     restart: unless-stopped
+  backup:
+    build: infra/backup
+    env_file: .env
+    environment: { PGPASSWORD: "${POSTGRES_PASSWORD}" }
+    depends_on: [postgres]
   web:
     build: apps/web
     env_file: .env
