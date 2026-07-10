@@ -8,5 +8,6 @@ FROM node:22-slim
 WORKDIR /srv
 COPY --from=build /srv/.next/standalone ./
 COPY --from=build /srv/.next/static ./.next/static
+ENV HOSTNAME=0.0.0.0
 EXPOSE 3000
 CMD ["node", "server.js"]
