@@ -3,7 +3,10 @@ services:
     ports: !reset []
   caddy:
     image: caddy:2
-    env_file: .env
+    # Least privilege: caddy is the internet-facing container and needs only
+    # the domain — never the full .env (DB password, tokens, broker creds).
+    environment:
+      COCKPIT_DOMAIN: ${COCKPIT_DOMAIN}
     ports: ["80:80", "443:443"]
     volumes:
       - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
