@@ -1,0 +1,13 @@
+services:
+  web:
+    ports: !reset []
+  caddy:
+    image: caddy:2
+    env_file: .env
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    depends_on: [web]
+volumes:
+  caddy_data:
