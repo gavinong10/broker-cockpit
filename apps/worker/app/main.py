@@ -1,9 +1,11 @@
 import asyncio
+import json
 import os
 
 from fastapi import Depends, FastAPI
 from sqlalchemy import create_engine, text
 from app.config import settings
+from app.heartbeat import heartbeat_loop
 from app.ibkr import gateway
 from app.internal_auth import require_internal
 
@@ -48,6 +50,20 @@ gateway.ib.disconnectedEvent += _audit_gateway_disconnect
 @app.on_event("startup")
 async def start_gateway():
     asyncio.create_task(gateway.connect_forever())
+
+def _heartbeat_status() -> dict:
+    return {"db": check_db(), "gateway": "connected" if gateway.connected else "down"}
+
+def _record_audit(category: str, payload: dict) -> None:
+    with get_engine().begin() as conn:
+        conn.execute(text(
+            "INSERT INTO audit_log (actor, category, payload) "
+            "VALUES ('system', :c, CAST(:p AS jsonb))"),
+            {"c": category, "p": json.dumps(payload)})
+
+@app.on_event("startup")
+async def start_heartbeat():
+    asyncio.create_task(heartbeat_loop(_heartbeat_status, _record_audit))
 
 @app.get("/health")
 def health():
