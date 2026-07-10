@@ -14,6 +14,16 @@ services:
     command: sh -c "uv run alembic upgrade head && uv run uvicorn app.main:app --host 0.0.0.0 --port 8000"
     depends_on:
       postgres: { condition: service_healthy }
+  ib-gateway:
+    image: ghcr.io/gnzsnz/ib-gateway:stable
+    env_file: .env
+    environment:
+      TWS_USERID: ${IB_USER}
+      TWS_PASSWORD: ${IB_PASSWORD}
+      TRADING_MODE: ${IB_TRADING_MODE}
+      AUTO_RESTART_TIME: "11:59 PM"
+      RELOGIN_AFTER_TWOFA_TIMEOUT: "yes"
+    restart: unless-stopped
   web:
     build: apps/web
     env_file: .env
