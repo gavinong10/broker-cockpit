@@ -2,6 +2,7 @@ services:
   postgres:
     image: postgres:16
     env_file: .env
+    ports: ["5432:5432"]
     volumes: ["pgdata:/var/lib/postgresql/data"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
@@ -10,6 +11,7 @@ services:
   worker:
     build: apps/worker
     env_file: .env
+    command: sh -c "uv run alembic upgrade head && uv run uvicorn app.main:app --host 0.0.0.0 --port 8000"
     depends_on:
       postgres: { condition: service_healthy }
   web:

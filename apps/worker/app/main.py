@@ -1,3 +1,5 @@
+import os
+
 from fastapi import FastAPI
 from sqlalchemy import create_engine, text
 from app.config import settings
@@ -18,6 +20,16 @@ def check_db() -> str:
         return "ok"
     except Exception:
         return "down"
+
+@app.on_event("startup")
+def seed_owner():
+    email = os.environ.get("OWNER_EMAIL")
+    if not email:
+        return
+    with get_engine().begin() as conn:
+        conn.execute(text(
+            "INSERT INTO users (email, role, mask_amounts) VALUES (:e, 'owner', false) "
+            "ON CONFLICT (email) DO NOTHING"), {"e": email})
 
 @app.get("/health")
 def health():
