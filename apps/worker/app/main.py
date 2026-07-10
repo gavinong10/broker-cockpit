@@ -1,8 +1,9 @@
 import os
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from sqlalchemy import create_engine, text
 from app.config import settings
+from app.internal_auth import require_internal
 
 app = FastAPI()
 _engine = None
@@ -34,3 +35,7 @@ def seed_owner():
 @app.get("/health")
 def health():
     return {"db": check_db(), "gateway": "not-configured"}
+
+@app.get("/internal/ping", dependencies=[Depends(require_internal)])
+def internal_ping():
+    return {"pong": True}
