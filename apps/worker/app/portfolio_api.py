@@ -123,8 +123,21 @@ def _basket_chips(rows) -> dict[tuple, list[dict]]:
     return chips
 
 
+def _tags_map(conn) -> dict[str, list]:
+    """underlying -> theme tags. Options inherit their underlying's tags."""
+    return {r.underlying: r.tags for r in conn.execute(
+        text("SELECT underlying, tags FROM underlying_tags")).all()}
+
+
+def _tags_for(g: dict, tags: dict[str, list]) -> list:
+    from app.baskets import parse_underlying
+    underlying = parse_underlying(g["symbol"]) if g["sec_type"] == "OPT" else g["symbol"]
+    return tags.get(underlying, [])
+
+
 def _serialize_position(g: dict, total_value: Decimal,
-                        baskets: list[dict] | None = None) -> dict:
+                        baskets: list[dict] | None = None,
+                        tags: list | None = None) -> dict:
     weight = (g["market_value_usd"] / total_value * 100).quantize(_PCT) \
         if total_value != 0 else _ZERO
     return {
@@ -144,6 +157,7 @@ def _serialize_position(g: dict, total_value: Decimal,
         "brokers": [{"broker": b, "qty": str(q)}
                     for b, q in sorted(g["broker_qty"].items())],
         "baskets": baskets or [],   # empty = core (unallocated)
+        "tags": tags or [],         # theme tags inherited from the underlying
     }
 
 
@@ -156,6 +170,7 @@ def portfolio():
             "FROM broker_accounts ORDER BY broker, external_id")).all()
         pos_rows = conn.execute(text(_POSITION_ROWS_SQL)).all()
         chip_rows = conn.execute(text(_BASKET_CHIP_SQL)).all()
+        tags = _tags_map(conn)
     chips = _basket_chips(chip_rows)
 
     aggs = _aggregate(pos_rows)
@@ -179,7 +194,8 @@ def portfolio():
         } for a in acct_rows],
         "positions": [_serialize_position(
             g, total,
-            chips.get((g["symbol"], g["sec_type"], g["expiry"], g["strike"], g["right"])))
+            chips.get((g["symbol"], g["sec_type"], g["expiry"], g["strike"], g["right"])),
+            _tags_for(g, tags))
             for g in aggs],
     }
 
@@ -243,6 +259,7 @@ def exposure():
     with _get_engine().connect() as conn:
         rows = conn.execute(text(_POSITION_ROWS_SQL)).all()
         chip_rows = conn.execute(text(_BASKET_CHIP_SQL)).all()
+        tags = _tags_map(conn)
     # OCC symbols are unique per contract, so (symbol, sec_type) is a safe key.
     chips: dict[tuple, list[dict]] = {}
     for c in chip_rows:
@@ -274,6 +291,7 @@ def exposure():
         positions = sorted(g["cons"].values(), key=lambda c: abs(c["mv"]), reverse=True)
         out.append({
             "underlying": underlying,
+            "tags": tags.get(underlying, []),
             "stock_value_usd": str(g["stock"].quantize(_CENT)),
             "option_value_usd": str(g["options"].quantize(_CENT)),
             "total_usd": str(net.quantize(_CENT)),

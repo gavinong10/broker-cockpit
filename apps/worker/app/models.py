@@ -1,9 +1,10 @@
 import enum
 from datetime import datetime, date
 from decimal import Decimal
-from sqlalchemy import (BigInteger, Boolean, Date, DateTime, Enum, ForeignKey,
-                        Numeric, String, Text, UniqueConstraint, func)
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import (BigInteger, Boolean, Computed, Date, DateTime, Enum,
+                        ForeignKey, Numeric, SmallInteger, String, Text,
+                        UniqueConstraint, func)
+from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 class Base(DeclarativeBase):
@@ -114,6 +115,31 @@ class BasketSnapshot(Base):
     taken_on: Mapped[date] = mapped_column(Date)
     value_usd: Mapped[Decimal] = mapped_column(Numeric(18, 2))
     __table_args__ = (UniqueConstraint("basket_id", "taken_on"),)
+
+class JournalEntry(Base):
+    """Owner's trade journal: the searchable 'why' behind positions.
+
+    Anchored to symbol (ticker or OCC), not instrument_id, so entries outlive
+    closed/vanished positions — the closed-position story stays readable.
+    Owner-only at the web layer: notes and target/stop are free-form dollars
+    that masking cannot reliably scrub.
+    """
+    __tablename__ = "journal_entries"
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    symbol: Mapped[str] = mapped_column(String(32), index=True)
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    actor: Mapped[str] = mapped_column(String(320))
+    tag: Mapped[str] = mapped_column(String(40))                  # e.g. thesis, trim, roll, hedge
+    note: Mapped[str] = mapped_column(Text)
+    target_usd: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
+    stop_usd: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
+    confidence: Mapped[int | None] = mapped_column(SmallInteger)  # 1-5
+    source_ref: Mapped[str | None] = mapped_column(String(128))   # e.g. conversation/session id
+    tsv: Mapped[str] = mapped_column(
+        TSVECTOR,
+        Computed("to_tsvector('english', coalesce(note,'') || ' ' || "
+                 "coalesce(tag,'') || ' ' || coalesce(symbol,''))", persisted=True),
+    )
 
 class AuditLog(Base):
     __tablename__ = "audit_log"
