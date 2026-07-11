@@ -115,6 +115,44 @@ class BasketSnapshot(Base):
     value_usd: Mapped[Decimal] = mapped_column(Numeric(18, 2))
     __table_args__ = (UniqueConstraint("basket_id", "taken_on"),)
 
+class BasketPlanLeg(Base):
+    """A planned (not yet owned) structure inside a basket — e.g. one call
+    vertical. `structure` is a JSONB list of contract dicts, each
+    {"occ": "NBIS281215C00220000", "sec_type": "OPT", "ratio": 1} (ratio -1 =
+    short leg; STK entries use {"symbol": ..., "sec_type": "STK", "ratio": 1}).
+    Economics are per structure unit; qty = number of units planned.
+    Plans never place orders — they are monitored intent (plan doc
+    2026-07-11-basket-plan-monitor.md)."""
+    __tablename__ = "basket_plan_legs"
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    basket_id: Mapped[int] = mapped_column(ForeignKey("baskets.id"))
+    label: Mapped[str] = mapped_column(String(64))                 # "NBIS Dec-28 220/330"
+    structure: Mapped[list] = mapped_column(JSONB)
+    qty: Mapped[Decimal] = mapped_column(Numeric(24, 8))
+    planned_net_debit: Mapped[Decimal] = mapped_column(Numeric(18, 4))   # per unit, per share (x multiplier for $)
+    tolerance_pct: Mapped[Decimal] = mapped_column(Numeric(6, 3), server_default="5")
+    breakeven_underlying: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
+    max_value_usd: Mapped[Decimal | None] = mapped_column(Numeric(18, 2))  # qty x width x multiplier
+    thesis_note: Mapped[str | None] = mapped_column(Text)          # "max pays at consensus target"
+    status: Mapped[str] = mapped_column(String(16), server_default="pending")  # pending|partial|held|abandoned
+    monitor_status: Mapped[str | None] = mapped_column(String(16))  # in_window|drifted|thesis_stale|unquotable
+    last_quote_net: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
+    last_quoted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_alerted_status: Mapped[str | None] = mapped_column(String(16))  # alert dedupe
+    filled_net_debit: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))  # set on graduation
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    __table_args__ = (UniqueConstraint("basket_id", "label"),)
+
+class BasketPlanMark(Base):
+    """Per-cycle live net-cost observation for a pending plan leg (drift history)."""
+    __tablename__ = "basket_plan_marks"
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    plan_leg_id: Mapped[int] = mapped_column(ForeignKey("basket_plan_legs.id"))
+    taken_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    net_cost: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))       # None = unquotable this cycle
+    underlying_spot: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
+    quote_basis: Mapped[str | None] = mapped_column(String(8))             # mid | last | theo
+
 class AuditLog(Base):
     __tablename__ = "audit_log"
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
