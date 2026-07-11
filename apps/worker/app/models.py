@@ -37,6 +37,8 @@ class BrokerAccount(Base):
     broker: Mapped[Broker] = mapped_column(Enum(Broker, name="broker"))
     external_id: Mapped[str] = mapped_column(String(64))
     base_currency: Mapped[str] = mapped_column(String(3), default="USD")
+    cash_usd: Mapped[Decimal] = mapped_column(Numeric(18, 2), server_default="0")
+    last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     __table_args__ = (UniqueConstraint("broker", "external_id"),)
 
 class Instrument(Base):
@@ -59,6 +61,8 @@ class Position(Base):
     instrument_id: Mapped[int] = mapped_column(ForeignKey("instruments.id"))
     qty: Mapped[Decimal] = mapped_column(Numeric(24, 8))
     avg_cost_usd: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
+    last_price_usd: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
+    prev_close_usd: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     __table_args__ = (UniqueConstraint("broker_account_id", "instrument_id"),)
 
