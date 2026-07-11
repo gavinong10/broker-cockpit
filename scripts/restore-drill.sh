@@ -4,11 +4,9 @@ set -eu
 # and works with either the compose plugin or standalone docker-compose.
 set -a; . ./.env; set +a
 if docker compose version >/dev/null 2>&1; then DC="docker compose"; else DC="docker-compose"; fi
-LATEST=$($DC run --rm backup rclone lsf ":b2:${B2_BUCKET}/" \
-  --b2-account "$B2_KEY_ID" --b2-key "$B2_APP_KEY" | sort | tail -1)
-$DC run --rm backup sh -c \
-  "rclone cat ':b2:${B2_BUCKET}/${LATEST}' --b2-account $B2_KEY_ID --b2-key $B2_APP_KEY" \
-  > /tmp/drill.sql.gz
+REMOTE=":gcs,service_account_file=${GCS_KEY_FILE}:${GCS_BUCKET}"
+LATEST=$($DC run --rm backup rclone lsf "${REMOTE}/" | sort | tail -1)
+$DC run --rm backup rclone cat "${REMOTE}/${LATEST}" > /tmp/drill.sql.gz
 # DROP/CREATE DATABASE must be separate psql -c calls: a multi-statement -c
 # runs as one implicit transaction, and DROP DATABASE is disallowed inside one.
 $DC exec -T postgres psql -U "$POSTGRES_USER" -c "DROP DATABASE IF EXISTS drill;"

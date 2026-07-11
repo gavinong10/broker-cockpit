@@ -27,7 +27,11 @@ services:
   backup:
     build: infra/backup
     env_file: .env
-    environment: { PGPASSWORD: "${POSTGRES_PASSWORD}" }
+    environment:
+      PGPASSWORD: "${POSTGRES_PASSWORD}"
+      GCS_KEY_FILE: /secrets/gcs-key.json
+    volumes:
+      - ./secrets/gcs-backup-key.json:/secrets/gcs-key.json:ro
     depends_on: [postgres]
   web:
     build: apps/web
