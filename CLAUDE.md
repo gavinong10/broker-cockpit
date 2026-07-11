@@ -32,6 +32,11 @@ Phase 0 task plan: `docs/superpowers/plans/2026-07-10-phase-0-skeleton.md`.
   secondary-user swap (trading-permissions-only, SLS opt-out) is a deliberate future
   step, not yet done — do not conflate paper and live credentials.
 
+- **Postgres-gated tests:** run against the isolated `cockpit_test` database
+  (same local colima postgres, migrated to head via alembic), NOT the dev
+  `cockpit` DB — demo-seed rows there FK-block test cleanup. Example:
+  `TEST_DATABASE_URL=postgresql+psycopg://cockpit:<pw>@localhost:5432/cockpit_test uv run pytest`.
+
 ## Standing rules for this project
 
 - Every actual paid/authenticated API call (GCS uploads, Discord posts, IBKR gateway
