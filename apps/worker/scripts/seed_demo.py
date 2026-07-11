@@ -3,12 +3,13 @@
     docker-compose exec worker uv run python scripts/seed_demo.py
 
 Inserts one demo broker account (robinhood/DEMO-0001) with cash, three
-equities (one fractional), and one call option. REFUSES to run if any
+equities (one fractional), one call option, and three daily portfolio
+snapshots (so the value chart draws a line). REFUSES to run if any
 broker_accounts row already exists — this must never touch a database that
 has seen a real sync.
 """
 import sys
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy import create_engine, text
 
@@ -24,6 +25,8 @@ EQUITIES = [
 OPTION = ("AAPL261218C00150000", "2026-12-18", "150.0000", "C", 100,
           "1", "45.10", "82.35", "80.90")
 CASH_USD = "2500.00"
+# (days ago, total value) — three fake days ending today, chart draws a line.
+SNAPSHOTS = [(2, "16810.40"), (1, "16954.93"), (0, "17133.15")]
 
 
 def main() -> int:
@@ -68,8 +71,16 @@ def main() -> int:
             {"s": occ, "e": expiry, "k": strike, "r": right, "m": mult}).scalar_one()
         insert_position(iid, qty, avg, last, prev)
 
+        for days_ago, total in SNAPSHOTS:
+            conn.execute(text(
+                "INSERT INTO snapshots (taken_on, total_value_usd, cash_usd, per_account) "
+                "VALUES (:d, :t, :c, '{}'::jsonb) "
+                "ON CONFLICT (taken_on) DO NOTHING"),
+                {"d": date.today() - timedelta(days=days_ago),
+                 "t": total, "c": CASH_USD})
+
     print("Seeded demo account DEMO-0001: 3 equities, 1 option, "
-          f"${CASH_USD} cash.")
+          f"${CASH_USD} cash, {len(SNAPSHOTS)} snapshots.")
     return 0
 
 

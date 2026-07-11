@@ -1,9 +1,15 @@
 import { auth, signOut } from "../auth";
 import { workerFetchRaw } from "@/lib/worker";
-import { positionLabel, type Portfolio, type PortfolioAccount } from "@/lib/portfolio";
+import {
+  positionLabel,
+  type Portfolio,
+  type PortfolioAccount,
+  type SnapshotPoint,
+} from "@/lib/portfolio";
 import PortfolioHeader from "@/components/PortfolioHeader";
 import AllocationBar from "@/components/AllocationBar";
 import PositionTable from "@/components/PositionTable";
+import ValueChart from "@/components/ValueChart";
 
 function staleMessage(accounts: PortfolioAccount[]): string | null {
   const stale = accounts.filter((a) => a.stale);
@@ -37,7 +43,12 @@ export default async function Home() {
   const role = user?.role ?? null;
   const masked = user?.mask_amounts ?? false;
 
-  const { status, body } = await workerFetchRaw("/internal/portfolio");
+  const [{ status, body }, snapshotsRes] = await Promise.all([
+    workerFetchRaw("/internal/portfolio"),
+    workerFetchRaw("/internal/snapshots?days=90"),
+  ]);
+  const snapshots =
+    snapshotsRes.status === 200 ? (snapshotsRes.body as SnapshotPoint[]) : null;
   const rhAuthExpired =
     status === 502 && (body as { error?: string } | null)?.error === "rh_auth";
   const portfolio = status === 200 ? (body as Portfolio) : null;
@@ -108,6 +119,8 @@ export default async function Home() {
               },
             ]}
           />
+
+          {snapshots !== null && <ValueChart snapshots={snapshots} masked={masked} />}
 
           <PositionTable positions={portfolio.positions} masked={masked} />
         </>
