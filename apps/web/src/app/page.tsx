@@ -11,6 +11,17 @@ import PortfolioHeader from "@/components/PortfolioHeader";
 import AllocationBar from "@/components/AllocationBar";
 import PositionTable from "@/components/PositionTable";
 import ValueChart from "@/components/ValueChart";
+import AsOfStamp from "@/components/AsOfStamp";
+import RhRefreshButton from "@/components/RhRefreshButton";
+
+/** Freshest sync across accounts; null = never synced (or no data). */
+function lastSyncedAt(accounts: PortfolioAccount[] | undefined): string | null {
+  const times = (accounts ?? [])
+    .map((a) => a.last_synced_at)
+    .filter((t): t is string => t !== null);
+  if (times.length === 0) return null;
+  return times.reduce((a, b) => (Date.parse(a) >= Date.parse(b) ? a : b));
+}
 
 function staleMessage(accounts: PortfolioAccount[]): string | null {
   const stale = accounts.filter((a) => a.stale);
@@ -78,6 +89,17 @@ export default async function Home() {
             </button>
           </form>
         </div>
+      </div>
+
+      {/* As-of stamp for everyone; refresh button owner-only (the server
+          action re-verifies the role — this gating is cosmetic). Rendered
+          even when the portfolio fetch failed: that's exactly when the
+          owner needs the refresh button. */}
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <AsOfStamp lastSyncedAt={lastSyncedAt(portfolio?.accounts)} />
+        {role === "owner" && (
+          <RhRefreshButton defaultUsername={process.env.RH_USERNAME ?? ""} />
+        )}
       </div>
 
       {rhAuthExpired && (
