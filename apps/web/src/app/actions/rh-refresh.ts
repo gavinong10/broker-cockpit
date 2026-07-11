@@ -20,10 +20,11 @@ export type RhRefreshState =
 function syncedPositions(sync: unknown): number | null {
   if (typeof sync !== "object" || sync === null) return null;
   const s = sync as Record<string, unknown>;
-  for (const key of ["positions", "positions_synced", "synced", "count"]) {
-    if (typeof s[key] === "number") return s[key] as number;
-  }
-  return null;
+  // Worker's sync summary is a SyncResult: {equity_positions, option_positions, ...}
+  const eq = typeof s.equity_positions === "number" ? s.equity_positions : null;
+  const opt = typeof s.option_positions === "number" ? s.option_positions : null;
+  if (eq === null && opt === null) return null;
+  return (eq ?? 0) + (opt ?? 0);
 }
 
 export async function refreshRobinhood(

@@ -104,8 +104,8 @@ export default async function Home() {
 
       {rhAuthExpired && (
         <Banner tone="red">
-          Robinhood session expired — re-run <code>rh_login.py</code> on the Mac
-          and copy the new session file to the server.
+          Robinhood session expired — use the &ldquo;Refresh Robinhood
+          session&rdquo; button above (owner only).
         </Banner>
       )}
 
