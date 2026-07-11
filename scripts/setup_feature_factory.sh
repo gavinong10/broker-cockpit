@@ -60,7 +60,10 @@ if [ ! -f "$ENV_FILE" ] && ! sudo -u factory test -s "$CRED_FILE"; then
   else
     echo "Launching 'claude login' as the factory user — open the URL it prints"
     echo "in your browser, authenticate, and paste the code back here."
-    sudo -Hu factory "$CLAUDE_BIN" login
+    # cwd must be factory-readable: the CLI stats ./.claude/settings.json in
+    # its working directory, and setup is typically run from /root/... which
+    # the factory user (correctly) cannot traverse -> EACCES settings errors.
+    (cd "$FACTORY_HOME" && sudo -Hu factory "$CLAUDE_BIN" login)
     sudo -u factory test -s "$CRED_FILE" || {
       echo "FAIL: no credentials at $CRED_FILE after login"; exit 1; }
   fi
@@ -117,7 +120,7 @@ if [ -f "$ENV_FILE" ]; then
 else
   check ok "factory CAN read its claude OAuth creds"    sudo -u factory test -s "$CRED_FILE"
 fi
-check ok   "factory CAN run $CLAUDE_BIN --version"      sudo -Hu factory "$CLAUDE_BIN" --version
+check ok   "factory CAN run $CLAUDE_BIN --version"      sudo -Hu factory sh -c "cd '$FACTORY_HOME' && '$CLAUDE_BIN' --version"
 # Functional git check: clone → chown → factory git status, as the runner does.
 SC_TMP="$FACTORY_HOME/features/.selfcheck-$$"
 rm -rf "$SC_TMP"
