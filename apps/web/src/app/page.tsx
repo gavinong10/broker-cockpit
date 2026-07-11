@@ -40,10 +40,13 @@ function staleMessage(accounts: PortfolioAccount[]): string | null {
 function Banner({ tone, children }: { tone: "amber" | "red"; children: React.ReactNode }) {
   const cls =
     tone === "amber"
-      ? "border-amber-400/60 bg-amber-50 text-amber-900 dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-200"
-      : "border-red-400/60 bg-red-50 text-red-900 dark:border-red-500/40 dark:bg-red-950/40 dark:text-red-200";
+      ? "border-amber-400/40 text-amber-400"
+      : "border-loss/40 text-loss";
   return (
-    <div role="status" className={`rounded-md border px-4 py-2 text-sm ${cls}`}>
+    <div
+      role="status"
+      className={`rounded-lg border bg-card px-4 py-2.5 text-sm ${cls}`}
+    >
       {children}
     </div>
   );
@@ -75,62 +78,53 @@ export default async function Home() {
   const portfolio = status === 200 ? (body as Portfolio) : null;
 
   return (
-    <main className="mx-auto flex w-full max-w-4xl flex-col gap-8 px-6 py-10 font-sans">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-6">
-          <h1 className="text-lg font-semibold text-zinc-950 dark:text-zinc-50">
-            broker-cockpit
-          </h1>
-          <NavTabs role={role} active="/" />
-        </div>
-        <div className="flex items-center gap-3 text-sm text-zinc-500 dark:text-zinc-400">
-          <span>
-            {email} ({role ?? "no role"})
-          </span>
-          <form
-            action={async () => {
-              "use server";
-              await signOut({ redirectTo: "/login" });
-            }}
-          >
-            <button
-              type="submit"
-              className="rounded-md border border-zinc-300 px-3 py-1 text-sm text-zinc-950 dark:border-zinc-700 dark:text-zinc-50"
+    <>
+      {/* Slim sticky nav on a blurred surface. */}
+      <header className="sticky top-0 z-10 border-b border-hairline bg-surface/80 backdrop-blur">
+        <div className="mx-auto flex h-12 w-full max-w-5xl items-center justify-between px-6">
+          <div className="flex items-center gap-6">
+            <span className="text-sm font-semibold text-ink">broker-cockpit</span>
+            <NavTabs role={role} active="/" />
+          </div>
+          <div className="flex items-center gap-4 text-[13px] text-ink-2">
+            <span className="hidden sm:inline">
+              {email} ({role ?? "no role"})
+            </span>
+            <form
+              action={async () => {
+                "use server";
+                await signOut({ redirectTo: "/login" });
+              }}
             >
-              Sign out
-            </button>
-          </form>
+              {/* Quiet text-link sign-out. */}
+              <button
+                type="submit"
+                className="text-[13px] text-ink-2 transition-colors hover:text-ink"
+              >
+                Sign out
+              </button>
+            </form>
+          </div>
         </div>
-      </div>
+      </header>
 
-      {/* As-of stamp for everyone; refresh button owner-only (the server
-          action re-verifies the role — this gating is cosmetic). Rendered
-          even when the portfolio fetch failed: that's exactly when the
-          owner needs the refresh button. */}
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <AsOfStamp lastSyncedAt={lastSyncedAt(portfolio?.accounts)} />
-        {role === "owner" && (
-          <RhRefreshButton defaultUsername={process.env.RH_USERNAME ?? ""} />
+      <main className="mx-auto flex w-full max-w-5xl flex-col gap-10 px-6 py-10 font-sans">
+        {rhAuthExpired && (
+          <Banner tone="red">
+            Robinhood session expired — use the &ldquo;Refresh Robinhood
+            session&rdquo; button below (owner only).
+          </Banner>
         )}
-      </div>
 
-      {rhAuthExpired && (
-        <Banner tone="red">
-          Robinhood session expired — use the &ldquo;Refresh Robinhood
-          session&rdquo; button above (owner only).
-        </Banner>
-      )}
+        {!portfolio && !rhAuthExpired && (
+          <Banner tone="red">Portfolio data unavailable (worker returned {status}).</Banner>
+        )}
 
-      {!portfolio && !rhAuthExpired && (
-        <Banner tone="red">Portfolio data unavailable (worker returned {status}).</Banner>
-      )}
+        {portfolio && staleMessage(portfolio.accounts) && (
+          <Banner tone="amber">{staleMessage(portfolio.accounts)}</Banner>
+        )}
 
-      {portfolio && (
-        <>
-          {staleMessage(portfolio.accounts) && (
-            <Banner tone="amber">{staleMessage(portfolio.accounts)}</Banner>
-          )}
-
+        {portfolio && (
           <PortfolioHeader
             totalValueUsd={portfolio.total_value_usd}
             dayChangeUsd={portfolio.day_change_usd}
@@ -138,30 +132,45 @@ export default async function Home() {
             cashUsd={portfolio.cash_usd}
             masked={masked}
           />
+        )}
 
-          <AllocationBar
-            items={[
-              ...portfolio.positions.map((p) => ({
-                label: positionLabel(p),
-                weightPct: Number(p.weight_pct),
-              })),
-              {
-                label: "Cash",
-                weightPct:
-                  Number(portfolio.total_value_usd) !== 0
-                    ? (Number(portfolio.cash_usd) / Number(portfolio.total_value_usd)) * 100
-                    : 0,
-              },
-            ]}
-          />
+        {/* Muted utility row: as-of stamp + owner-only refresh. The server
+            action re-verifies the role — this gating is cosmetic. Rendered
+            even when the portfolio fetch failed: that's exactly when the
+            owner needs the refresh button. */}
+        <div className="-mt-6 flex flex-wrap items-start justify-between gap-3">
+          <AsOfStamp lastSyncedAt={lastSyncedAt(portfolio?.accounts)} />
+          {role === "owner" && (
+            <RhRefreshButton defaultUsername={process.env.RH_USERNAME ?? ""} />
+          )}
+        </div>
 
-          {snapshots !== null && <ValueChart snapshots={snapshots} masked={masked} />}
+        {portfolio && (
+          <>
+            {snapshots !== null && <ValueChart snapshots={snapshots} masked={masked} />}
 
-          {baskets.length > 0 && <BasketCards baskets={baskets} masked={masked} />}
+            <AllocationBar
+              items={[
+                ...portfolio.positions.map((p) => ({
+                  label: positionLabel(p),
+                  weightPct: Number(p.weight_pct),
+                })),
+                {
+                  label: "Cash",
+                  weightPct:
+                    Number(portfolio.total_value_usd) !== 0
+                      ? (Number(portfolio.cash_usd) / Number(portfolio.total_value_usd)) * 100
+                      : 0,
+                },
+              ]}
+            />
 
-          <PositionTable positions={portfolio.positions} masked={masked} />
-        </>
-      )}
-    </main>
+            {baskets.length > 0 && <BasketCards baskets={baskets} masked={masked} />}
+
+            <PositionTable positions={portfolio.positions} masked={masked} />
+          </>
+        )}
+      </main>
+    </>
   );
 }

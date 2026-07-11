@@ -16,7 +16,7 @@ const CHICAGO_FMT = new Intl.DateTimeFormat("en-US", {
 
 export default function AsOfStamp({ lastSyncedAt }: { lastSyncedAt: string | null }) {
   return (
-    <p className="text-sm text-zinc-500 dark:text-zinc-400">
+    <p className="text-[13px] text-ink-2">
       {lastSyncedAt === null ? (
         "Data as of: never synced"
       ) : (

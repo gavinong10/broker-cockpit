@@ -17,14 +17,14 @@ export default function NavTabs({
   if (role === "owner") tabs.push({ href: "/capabilities", label: "Capabilities" });
 
   return (
-    <nav aria-label="Primary" className="flex items-center gap-4 text-sm">
+    <nav aria-label="Primary" className="flex items-center gap-5 text-sm">
       {tabs.map((t) =>
         t.href === active ? (
           <Link
             key={t.href}
             href={t.href}
             aria-current="page"
-            className="border-b-2 border-zinc-950 pb-0.5 font-medium text-zinc-950 dark:border-zinc-50 dark:text-zinc-50"
+            className="font-medium text-ink"
           >
             {t.label}
           </Link>
@@ -32,7 +32,7 @@ export default function NavTabs({
           <Link
             key={t.href}
             href={t.href}
-            className="border-b-2 border-transparent pb-0.5 text-zinc-500 hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-zinc-50"
+            className="text-ink-2 transition-colors hover:text-ink"
           >
             {t.label}
           </Link>

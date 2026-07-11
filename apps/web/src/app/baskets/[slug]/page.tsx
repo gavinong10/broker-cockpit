@@ -24,17 +24,11 @@ function Stat({
   tone?: "up" | "down";
 }) {
   const color =
-    tone === "up"
-      ? "text-[#006300] dark:text-[#0ca30c]"
-      : tone === "down"
-        ? "text-[#d03b3b]"
-        : "text-zinc-950 dark:text-zinc-50";
+    tone === "up" ? "text-gain" : tone === "down" ? "text-loss" : "text-ink";
   return (
     <div>
-      <p className="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-        {label}
-      </p>
-      <p className={`text-lg font-medium tabular-nums ${color}`}>{value}</p>
+      <p className="micro-label">{label}</p>
+      <p className={`mt-1 text-lg font-medium tabular-nums ${color}`}>{value}</p>
     </div>
   );
 }
@@ -42,10 +36,8 @@ function Stat({
 function TextBlock({ label, text }: { label: string; text: string }) {
   return (
     <div>
-      <h2 className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-        {label}
-      </h2>
-      <p className="mt-1 whitespace-pre-wrap text-sm text-zinc-950 dark:text-zinc-50">
+      <h2 className="micro-label">{label}</h2>
+      <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-ink-2">
         {text}
       </p>
     </div>
@@ -71,8 +63,8 @@ export default async function BasketPage({
   if (status === 404) notFound();
   if (status !== 200) {
     return (
-      <main className="mx-auto w-full max-w-4xl px-6 py-10">
-        <p className="text-sm text-red-700 dark:text-red-300">
+      <main className="mx-auto w-full max-w-5xl px-6 py-10 font-sans">
+        <p className="rounded-lg border border-loss/40 bg-card px-4 py-2.5 text-sm text-loss">
           Basket data unavailable (worker returned {status}).
         </p>
       </main>
@@ -95,28 +87,31 @@ export default async function BasketPage({
   }));
 
   return (
-    <main className="mx-auto flex w-full max-w-4xl flex-col gap-8 px-6 py-10 font-sans">
+    <main className="mx-auto flex w-full max-w-5xl flex-col gap-10 px-6 py-10 font-sans">
       <div>
         <Link
           href="/"
-          className="text-sm text-zinc-500 underline-offset-2 hover:underline dark:text-zinc-400"
+          className="text-[13px] text-ink-2 underline-offset-2 transition-colors hover:text-ink hover:underline"
         >
           &larr; Portfolio
         </Link>
-        <h1 className="mt-2 flex items-center gap-2 text-2xl font-semibold text-zinc-950 dark:text-zinc-50">
+        <h1 className="mt-2 flex items-center gap-2.5 text-2xl font-semibold tracking-tight text-ink">
           {basket.name}
-          <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs uppercase text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
+          <span className="rounded-full border border-hairline px-2 py-0.5 text-[11px] font-medium uppercase tracking-[0.08em] text-ink-2">
             {basket.status}
           </span>
         </h1>
         {basket.source_ref !== null && (
-          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+          <p className="mt-1 text-sm text-ink-3">
             Imported from conversation {basket.source_ref}
           </p>
         )}
       </div>
 
-      <section aria-label="Basket thesis" className="flex flex-col gap-4">
+      <section
+        aria-label="Basket thesis"
+        className="flex flex-col gap-4 rounded-xl border border-hairline bg-card p-5"
+      >
         <TextBlock label="Thesis" text={basket.thesis} />
         {basket.horizon !== null && (
           <TextBlock label="Horizon" text={basket.horizon} />

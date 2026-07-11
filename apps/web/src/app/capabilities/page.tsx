@@ -45,79 +45,85 @@ async function loadDocs(): Promise<Doc[]> {
   return [];
 }
 
-// Typography for react-markdown consistent with the app's zinc/dark palette.
+// Typography for react-markdown matched to the dark theme tokens.
 // No raw-HTML rendering, no plugins — react-markdown's safe defaults.
 const mdComponents: Components = {
   h1: ({ children }) => (
-    <h3 className="mt-6 text-base font-semibold text-zinc-950 first:mt-0 dark:text-zinc-50">
+    <h3 className="mt-6 text-base font-semibold text-ink first:mt-0">
       {children}
     </h3>
   ),
   h2: ({ children }) => (
-    <h4 className="mt-6 text-sm font-semibold text-zinc-950 first:mt-0 dark:text-zinc-50">
+    <h4 className="mt-6 text-sm font-semibold text-ink first:mt-0">
       {children}
     </h4>
   ),
   h3: ({ children }) => (
-    <h5 className="mt-4 text-sm font-medium text-zinc-950 first:mt-0 dark:text-zinc-50">
+    <h5 className="mt-4 text-sm font-medium text-ink first:mt-0">
       {children}
     </h5>
   ),
   p: ({ children }) => (
-    <p className="mt-3 text-sm leading-6 text-zinc-700 first:mt-0 dark:text-zinc-300">
-      {children}
-    </p>
+    <p className="mt-3 text-sm leading-6 text-ink-2 first:mt-0">{children}</p>
   ),
   ul: ({ children }) => (
-    <ul className="mt-3 list-disc space-y-1 pl-5 text-sm leading-6 text-zinc-700 dark:text-zinc-300">
+    <ul className="mt-3 list-disc space-y-1 pl-5 text-sm leading-6 text-ink-2">
       {children}
     </ul>
   ),
   ol: ({ children }) => (
-    <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm leading-6 text-zinc-700 dark:text-zinc-300">
+    <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm leading-6 text-ink-2">
       {children}
     </ol>
   ),
   a: ({ href, children }) => (
-    <a
-      href={href}
-      className="text-zinc-950 underline underline-offset-2 dark:text-zinc-50"
-    >
+    <a href={href} className="text-accent underline underline-offset-2">
       {children}
     </a>
   ),
   code: ({ children }) => (
-    <code className="rounded bg-zinc-100 px-1 py-0.5 font-mono text-[0.8rem] text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200">
+    <code className="rounded bg-card px-1 py-0.5 font-mono text-[0.8rem] text-ink">
       {children}
     </code>
   ),
   pre: ({ children }) => (
-    <pre className="mt-3 overflow-x-auto rounded-md border border-zinc-200 bg-zinc-50 p-3 text-xs leading-5 dark:border-zinc-800 dark:bg-zinc-900 [&_code]:bg-transparent [&_code]:p-0">
+    <pre className="mt-3 overflow-x-auto rounded-lg border border-hairline bg-card p-3 text-xs leading-5 text-ink [&_code]:bg-transparent [&_code]:p-0">
       {children}
     </pre>
   ),
   blockquote: ({ children }) => (
-    <blockquote className="mt-3 border-l-2 border-zinc-300 pl-3 text-sm italic text-zinc-600 dark:border-zinc-700 dark:text-zinc-400">
+    <blockquote className="mt-3 border-l-2 border-hairline pl-3 text-sm italic text-ink-2">
       {children}
     </blockquote>
   ),
-  hr: () => <hr className="my-6 border-zinc-200 dark:border-zinc-800" />,
+  hr: () => <hr className="my-6 border-hairline" />,
   table: ({ children }) => (
     <div className="mt-3 overflow-x-auto">
       <table className="w-full border-collapse text-sm">{children}</table>
     </div>
   ),
   th: ({ children }) => (
-    <th className="border-b border-zinc-300 px-2 py-1 text-left font-medium text-zinc-950 dark:border-zinc-700 dark:text-zinc-50">
+    <th className="border-b border-hairline px-2 py-1 text-left font-medium text-ink">
       {children}
     </th>
   ),
   td: ({ children }) => (
-    <td className="border-b border-zinc-200 px-2 py-1 text-zinc-700 dark:border-zinc-800 dark:text-zinc-300">
+    <td className="border-b border-hairline px-2 py-1 text-ink-2">
       {children}
     </td>
   ),
 };
+
+function PageHeader({ role }: { role: Role }) {
+  return (
+    <header className="sticky top-0 z-10 border-b border-hairline bg-surface/80 backdrop-blur">
+      <div className="mx-auto flex h-12 w-full max-w-5xl items-center gap-6 px-6">
+        <span className="text-sm font-semibold text-ink">broker-cockpit</span>
+        <NavTabs role={role} active="/capabilities" />
+      </div>
+    </header>
+  );
+}
 
 export default async function CapabilitiesPage() {
   const session = await auth();
@@ -127,57 +133,45 @@ export default async function CapabilitiesPage() {
   if (role !== "owner") {
     // Docs contain operational details viewers must not see.
     return (
-      <main className="mx-auto flex w-full max-w-4xl flex-col gap-8 px-6 py-10 font-sans">
-        <div className="flex items-center gap-6">
-          <h1 className="text-lg font-semibold text-zinc-950 dark:text-zinc-50">
-            broker-cockpit
-          </h1>
-          <NavTabs role={role} active="/capabilities" />
-        </div>
-        <p className="text-sm text-zinc-500 dark:text-zinc-400">
-          Not available — this page is owner-only.
-        </p>
-      </main>
+      <>
+        <PageHeader role={role} />
+        <main className="mx-auto flex w-full max-w-2xl flex-col gap-10 px-6 py-10 font-sans">
+          <p className="text-sm text-ink-2">
+            Not available — this page is owner-only.
+          </p>
+        </main>
+      </>
     );
   }
 
   const docs = await loadDocs();
 
   return (
-    <main className="mx-auto flex w-full max-w-4xl flex-col gap-8 px-6 py-10 font-sans">
-      <div className="flex items-center gap-6">
-        <h1 className="text-lg font-semibold text-zinc-950 dark:text-zinc-50">
-          broker-cockpit
-        </h1>
-        <NavTabs role={role} active="/capabilities" />
-      </div>
-
-      {docs.length === 0 && (
-        <p className="text-sm text-zinc-500 dark:text-zinc-400">
-          No capability docs found. Add markdown files to docs/capabilities/
-          (mounted at /srv/docs/capabilities in the container).
-        </p>
-      )}
-
-      {docs.map((doc) => (
-        <section
-          key={doc.file}
-          aria-label={doc.title}
-          className="rounded-lg border border-zinc-200 p-6 dark:border-zinc-800"
-        >
-          <h2 className="text-xl font-semibold text-zinc-950 dark:text-zinc-50">
-            {doc.title}
-          </h2>
-          <p className="mt-1 font-mono text-xs text-zinc-500 dark:text-zinc-400">
-            {doc.file}
+    <>
+      <PageHeader role={role} />
+      {/* Readable prose measure. */}
+      <main className="mx-auto flex w-full max-w-2xl flex-col gap-10 px-6 py-10 font-sans">
+        {docs.length === 0 && (
+          <p className="text-sm text-ink-2">
+            No capability docs found. Add markdown files to docs/capabilities/
+            (mounted at /srv/docs/capabilities in the container).
           </p>
-          <div className="mt-4">
-            <ReactMarkdown components={mdComponents}>
-              {doc.markdown}
-            </ReactMarkdown>
-          </div>
-        </section>
-      ))}
-    </main>
+        )}
+
+        {docs.map((doc) => (
+          <section key={doc.file} aria-label={doc.title}>
+            <h2 className="text-lg font-semibold tracking-tight text-ink">
+              {doc.title}
+            </h2>
+            <p className="mt-1 font-mono text-xs text-ink-3">{doc.file}</p>
+            <div className="mt-4">
+              <ReactMarkdown components={mdComponents}>
+                {doc.markdown}
+              </ReactMarkdown>
+            </div>
+          </section>
+        ))}
+      </main>
+    </>
   );
 }

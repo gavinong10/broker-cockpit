@@ -1,26 +1,55 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/* Single committed dark theme — "Robinhood-quiet". No light variant, no
+   box-shadows, never pure black. Depth comes from surface steps + hairlines. */
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* Surfaces */
+  --color-surface: #0e0f13; /* page */
+  --color-card: #16181e; /* raised cards / code blocks */
+  --color-hairline: #23262e; /* borders, dividers */
+  --color-hover: #1a1d24; /* row hover */
+
+  /* Ink */
+  --color-ink: #f5f6f8; /* primary text */
+  --color-ink-2: #9aa0ab; /* secondary text, micro-labels */
+  --color-ink-3: #5d636e; /* faint / decorative only (sub-AA — never sole carrier) */
+
+  /* Accents — numbers/deltas only, never large fills */
+  --color-gain: #00c805;
+  --color-loss: #ff5000;
+  --color-accent: #4f8ef7; /* links, focus, single-series marks */
+
+  --font-sans: var(--font-inter), system-ui, -apple-system, "Segoe UI",
+    sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+:root {
+  color-scheme: dark;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  /* All numerals tabular, app-wide. */
+  font-variant-numeric: tabular-nums;
+}
+
+/* Uppercase micro-label: section headings, table headers, stat labels. */
+.micro-label {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-ink-2);
+}
+
+a:focus-visible,
+button:focus-visible,
+summary:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
 }

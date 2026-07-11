@@ -16,17 +16,11 @@ function Stat({
   tone?: "up" | "down";
 }) {
   const color =
-    tone === "up"
-      ? "text-[#006300] dark:text-[#0ca30c]"
-      : tone === "down"
-        ? "text-[#d03b3b]"
-        : "text-zinc-950 dark:text-zinc-50";
+    tone === "up" ? "text-gain" : tone === "down" ? "text-loss" : "text-ink";
   return (
     <div>
-      <p className="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-        {label}
-      </p>
-      <p className={`text-lg font-medium tabular-nums ${color}`}>{value}</p>
+      <p className="micro-label">{label}</p>
+      <p className={`mt-1 text-lg font-medium tabular-nums ${color}`}>{value}</p>
     </div>
   );
 }
@@ -50,8 +44,8 @@ export default async function PositionPage({
   if (status === 404) notFound();
   if (status !== 200) {
     return (
-      <main className="mx-auto w-full max-w-4xl px-6 py-10">
-        <p className="text-sm text-red-700 dark:text-red-300">
+      <main className="mx-auto w-full max-w-5xl px-6 py-10 font-sans">
+        <p className="rounded-lg border border-loss/40 bg-card px-4 py-2.5 text-sm text-loss">
           Position data unavailable (worker returned {status}).
         </p>
       </main>
@@ -63,19 +57,19 @@ export default async function PositionPage({
   const day = Number(detail.day_change_usd);
 
   return (
-    <main className="mx-auto flex w-full max-w-4xl flex-col gap-8 px-6 py-10 font-sans">
+    <main className="mx-auto flex w-full max-w-5xl flex-col gap-10 px-6 py-10 font-sans">
       <div>
         <Link
           href="/"
-          className="text-sm text-zinc-500 underline-offset-2 hover:underline dark:text-zinc-400"
+          className="text-[13px] text-ink-2 underline-offset-2 transition-colors hover:text-ink hover:underline"
         >
           &larr; Portfolio
         </Link>
-        <h1 className="mt-2 text-2xl font-semibold text-zinc-950 dark:text-zinc-50">
+        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-ink">
           {positionLabel(detail)}
         </h1>
         {detail.sec_type === "OPT" && (
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">{detail.symbol}</p>
+          <p className="mt-0.5 font-mono text-xs text-ink-3">{detail.symbol}</p>
         )}
       </div>
 
@@ -96,30 +90,23 @@ export default async function PositionPage({
         />
       </section>
 
-      <p className="text-sm text-zinc-500 dark:text-zinc-400">
+      <p className="text-sm text-ink-2">
         Last price{" "}
         {detail.last_price_usd === null ? "—" : display(detail.last_price_usd, masked)}
         {" · "}day change{" "}
         <span
-          className={day >= 0 ? "text-[#006300] dark:text-[#0ca30c]" : "text-[#d03b3b]"}
+          className={day >= 0 ? "text-gain" : "text-loss"}
         >
           {masked ? "•••" : `${day >= 0 ? "+" : ""}${usd(detail.day_change_usd)}`}
         </span>
       </p>
 
       <section aria-label="Per-account breakdown">
-        <h2 className="mb-2 text-sm font-medium text-zinc-500 dark:text-zinc-400">
-          Accounts
-        </h2>
-        <div className="grid grid-cols-[repeat(6,minmax(5rem,1fr))] gap-2 border-b border-zinc-200 pb-1 dark:border-zinc-800">
+        <h2 className="micro-label mb-3">Accounts</h2>
+        <div className="grid grid-cols-[repeat(6,minmax(5rem,1fr))] gap-2 border-b border-hairline pb-2">
           {["Broker", "Account", "Qty", "Avg cost", "Market value", "Unrealized P/L"].map(
             (h, i) => (
-              <span
-                key={h}
-                className={`text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400 ${
-                  i < 2 ? "" : "text-right"
-                }`}
-              >
+              <span key={h} className={`micro-label ${i < 2 ? "" : "text-right"}`}>
                 {h}
               </span>
             ),
@@ -131,24 +118,22 @@ export default async function PositionPage({
             return (
               <li
                 key={`${a.broker}-${a.external_id}`}
-                className="grid grid-cols-[repeat(6,minmax(5rem,1fr))] gap-2 border-b border-zinc-100 py-2 dark:border-zinc-900"
+                className="grid h-12 grid-cols-[repeat(6,minmax(5rem,1fr))] items-center gap-2 border-b border-hairline transition-colors last:border-b-0 hover:bg-hover"
               >
-                <span className="text-sm text-zinc-950 dark:text-zinc-50">{a.broker}</span>
-                <span className="text-sm text-zinc-500 dark:text-zinc-400">
-                  {a.external_id}
-                </span>
-                <span className="text-right text-sm tabular-nums text-zinc-950 dark:text-zinc-50">
+                <span className="text-sm text-ink">{a.broker}</span>
+                <span className="text-sm text-ink-2">{a.external_id}</span>
+                <span className="text-right text-sm tabular-nums text-ink">
                   {displayQty(a.qty, masked)}
                 </span>
-                <span className="text-right text-sm tabular-nums text-zinc-950 dark:text-zinc-50">
+                <span className="text-right text-sm tabular-nums text-ink">
                   {a.avg_cost_usd === null ? "—" : display(a.avg_cost_usd, masked)}
                 </span>
-                <span className="text-right text-sm tabular-nums text-zinc-950 dark:text-zinc-50">
+                <span className="text-right text-sm tabular-nums text-ink">
                   {display(a.market_value_usd, masked)}
                 </span>
                 <span
                   className={`text-right text-sm tabular-nums ${
-                    rowPl >= 0 ? "text-[#006300] dark:text-[#0ca30c]" : "text-[#d03b3b]"
+                    rowPl >= 0 ? "text-gain" : "text-loss"
                   }`}
                 >
                   {masked ? "•••" : `${rowPl >= 0 ? "+" : ""}${usd(a.unrealized_pl_usd)}`}
@@ -161,12 +146,10 @@ export default async function PositionPage({
 
       <section
         aria-label="Journal"
-        className="rounded-md border border-dashed border-zinc-300 px-4 py-6 text-center dark:border-zinc-700"
+        className="rounded-xl border border-dashed border-hairline px-4 py-6 text-center"
       >
-        <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
-          Journal — coming in Phase 2
-        </h2>
-        <p className="mt-1 text-sm text-zinc-400 dark:text-zinc-500">
+        <h2 className="micro-label">Journal — coming in Phase 2</h2>
+        <p className="mt-2 text-sm text-ink-3">
           Trade notes and thesis tracking will live here.
         </p>
       </section>

@@ -1,10 +1,13 @@
 // Server component: portfolio value over time as an inline SVG line chart
-// (no chart library). dataviz: single series -> slot-1 blue (light #2a78d6 /
-// dark #3987e5), 2px line with round join/cap, ~10%-opacity area wash, 8px
-// end marker with a 2px surface ring, solid hairline gridlines, selective
-// direct labels (min / max / latest only), axis text in muted ink with
-// tabular figures. No legend: one series, the heading names it. Dollar
-// labels respect masking; the line shape (relative change) stays visible.
+// (no chart library). dataviz: single series -> one hue, chosen by window
+// polarity (gain green when last >= first, loss orange-red otherwise —
+// status color paired with real signed values, never color-alone). 2px line
+// with round join/cap, soft vertical gradient wash under the line (8% ->
+// transparent), >=8px end marker with a 2px surface ring, no chart borders
+// or gridlines beyond a single recessive baseline, selective direct labels
+// (min / max / latest only) in muted ink with tabular figures. No legend:
+// one series, the heading names it. Dollar labels respect masking; the line
+// shape (relative change) stays visible.
 
 import { display } from "@/lib/format";
 import type { SnapshotPoint } from "@/lib/portfolio";
@@ -12,6 +15,9 @@ import type { SnapshotPoint } from "@/lib/portfolio";
 const W = 640;
 const H = 200;
 const PAD = { top: 16, right: 12, bottom: 24, left: 12 };
+
+const GAIN = "#00c805";
+const LOSS = "#ff5000";
 
 function shortDate(iso: string): string {
   const [, m, d] = iso.split("-");
@@ -27,15 +33,9 @@ export default function ValueChart({
   masked: boolean;
   title?: string;
 }) {
-  const note = (text: string) => (
-    <p className="text-sm text-zinc-500 dark:text-zinc-400">{text}</p>
-  );
+  const note = (text: string) => <p className="text-sm text-ink-2">{text}</p>;
 
-  const heading = (
-    <h2 className="mb-2 text-sm font-medium text-zinc-500 dark:text-zinc-400">
-      {title}
-    </h2>
-  );
+  const heading = <h2 className="micro-label mb-3">{title}</h2>;
 
   if (snapshots.length === 0) {
     return (
@@ -52,6 +52,11 @@ export default function ValueChart({
   const span = hi - lo || Math.abs(hi) * 0.02 || 1; // flat series: give it air
   const yMin = lo - span * 0.15;
   const yMax = hi + span * 0.15;
+
+  // Window polarity picks the single series hue (RH convention).
+  const up = values[values.length - 1] >= values[0];
+  const hue = up ? GAIN : LOSS;
+  const gradId = up ? "vc-wash-gain" : "vc-wash-loss";
 
   const x = (i: number) =>
     snapshots.length === 1
@@ -81,37 +86,31 @@ export default function ValueChart({
         role="img"
         aria-label={`Daily portfolio value, ${snapshots[0].taken_on} to ${snapshots[last].taken_on}`}
       >
-        {/* hairline gridlines, solid, recessive */}
-        {[0.25, 0.5, 0.75].map((f) => {
-          const gy = PAD.top + f * (H - PAD.top - PAD.bottom);
-          return (
-            <line
-              key={f}
-              x1={PAD.left}
-              x2={W - PAD.right}
-              y1={gy}
-              y2={gy}
-              className="stroke-zinc-200 dark:stroke-zinc-800"
-              strokeWidth={1}
-            />
-          );
-        })}
+        <defs>
+          {/* soft vertical wash under the line: 8% -> transparent */}
+          <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={hue} stopOpacity={0.08} />
+            <stop offset="100%" stopColor={hue} stopOpacity={0} />
+          </linearGradient>
+        </defs>
+
+        {/* single recessive baseline — no other gridlines, no border */}
         <line
           x1={PAD.left}
           x2={W - PAD.right}
           y1={baseline}
           y2={baseline}
-          className="stroke-zinc-300 dark:stroke-zinc-700"
+          stroke="#23262e"
           strokeWidth={1}
         />
 
         {snapshots.length > 1 && (
           <>
-            <path d={areaPath} className="fill-[#2a78d6]/10 dark:fill-[#3987e5]/10" />
+            <path d={areaPath} fill={`url(#${gradId})`} />
             <path
               d={linePath}
               fill="none"
-              className="stroke-[#2a78d6] dark:stroke-[#3987e5]"
+              stroke={hue}
               strokeWidth={2}
               strokeLinejoin="round"
               strokeLinecap="round"
@@ -124,7 +123,8 @@ export default function ValueChart({
           cx={pts[last][0]}
           cy={pts[last][1]}
           r={4}
-          className="fill-[#2a78d6] stroke-white dark:fill-[#3987e5] dark:stroke-[#0a0a0a]"
+          fill={hue}
+          stroke="#0e0f13"
           strokeWidth={2}
         />
 
@@ -138,7 +138,7 @@ export default function ValueChart({
               x={pts[i][0]}
               y={above ? pts[i][1] - 8 : pts[i][1] + 14}
               textAnchor={anchor}
-              className="fill-zinc-500 text-[11px] tabular-nums dark:fill-zinc-400"
+              className="fill-ink-2 text-[11px] tabular-nums"
             >
               {display(values[i], masked)}
             </text>
@@ -150,7 +150,7 @@ export default function ValueChart({
           x={PAD.left}
           y={H - 6}
           textAnchor="start"
-          className="fill-zinc-500 text-[11px] tabular-nums dark:fill-zinc-400"
+          className="fill-ink-3 text-[11px] tabular-nums"
         >
           {shortDate(snapshots[0].taken_on)}
         </text>
@@ -159,7 +159,7 @@ export default function ValueChart({
             x={W - PAD.right}
             y={H - 6}
             textAnchor="end"
-            className="fill-zinc-500 text-[11px] tabular-nums dark:fill-zinc-400"
+            className="fill-ink-3 text-[11px] tabular-nums"
           >
             {shortDate(snapshots[last].taken_on)}
           </text>

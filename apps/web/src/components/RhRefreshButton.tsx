@@ -21,8 +21,8 @@ function channelLabel(channel: string): string {
 }
 
 const inputCls =
-  "w-full rounded-md border border-zinc-300 bg-white px-2 py-1 text-sm text-zinc-950 " +
-  "dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50";
+  "mt-1 w-full rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-sm text-ink " +
+  "placeholder:text-ink-3";
 
 export default function RhRefreshButton({
   defaultUsername,
@@ -59,7 +59,7 @@ export default function RhRefreshButton({
     return (
       <span className="flex items-center gap-2">
         {state.kind === "ok" && (
-          <span className="text-sm text-[#006300] dark:text-[#0ca30c]" role="status">
+          <span className="text-sm text-gain" role="status">
             Session refreshed
             {state.syncedPositions !== null &&
               ` — synced ${state.syncedPositions} positions`}
@@ -68,7 +68,7 @@ export default function RhRefreshButton({
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="rounded-md border border-zinc-300 px-3 py-1 text-sm text-zinc-950 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-50 dark:hover:bg-zinc-900"
+          className="rounded-full border border-hairline px-3.5 py-1.5 text-[13px] text-ink-2 transition-colors hover:bg-hover hover:text-ink"
         >
           Refresh Robinhood session
         </button>
@@ -79,12 +79,12 @@ export default function RhRefreshButton({
   return (
     <form
       action={formAction}
-      className="flex w-full max-w-sm flex-col gap-2 rounded-md border border-zinc-200 p-3 dark:border-zinc-800"
+      className="flex w-full max-w-sm flex-col gap-2 rounded-xl border border-hairline bg-card p-5"
     >
-      <p className="text-sm font-medium text-zinc-950 dark:text-zinc-50">
+      <p className="text-sm font-medium text-ink">
         Refresh Robinhood session
       </p>
-      <label className="text-xs text-zinc-500 dark:text-zinc-400">
+      <label className="micro-label block">
         Username
         <input
           name="username"
@@ -96,7 +96,7 @@ export default function RhRefreshButton({
           className={inputCls}
         />
       </label>
-      <label className="text-xs text-zinc-500 dark:text-zinc-400">
+      <label className="micro-label block">
         Password
         <input
           name="password"
@@ -109,7 +109,7 @@ export default function RhRefreshButton({
         />
       </label>
       {state.kind === "needs_code" && (
-        <label className="text-xs text-zinc-500 dark:text-zinc-400">
+        <label className="micro-label block">
           Verification code ({channelLabel(state.channel)})
           <input
             name="code"
@@ -120,20 +120,20 @@ export default function RhRefreshButton({
             onChange={(e) => setCode(e.target.value)}
             className={inputCls}
           />
-          <span className="mt-0.5 block text-[11px] text-zinc-400 dark:text-zinc-500">
+          <span className="mt-1 block text-[11px] normal-case tracking-normal text-ink-3">
             Enter the code {channelLabel(state.channel)}. Submitting without a
             code triggers a fresh challenge (any earlier code stops working).
           </span>
         </label>
       )}
       {pending && (
-        <p className="text-sm text-amber-700 dark:text-amber-300" role="status">
+        <p className="text-sm text-amber-400" role="status">
           Requesting… check your phone for a Robinhood approval prompt (can
           take up to 2 minutes).
         </p>
       )}
       {!pending && state.kind === "error" && (
-        <p className="text-sm text-red-700 dark:text-red-300" role="alert">
+        <p className="text-sm text-loss" role="alert">
           {state.message}
         </p>
       )}
@@ -141,7 +141,7 @@ export default function RhRefreshButton({
         <button
           type="submit"
           disabled={pending}
-          className="rounded-md border border-zinc-300 px-3 py-1 text-sm text-zinc-950 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-50 dark:hover:bg-zinc-900"
+          className="rounded-full border border-hairline px-3.5 py-1.5 text-[13px] font-medium text-ink transition-colors hover:bg-hover disabled:opacity-50"
         >
           {pending ? "Refreshing…" : "Refresh"}
         </button>
@@ -149,7 +149,7 @@ export default function RhRefreshButton({
           type="button"
           onClick={close}
           disabled={pending}
-          className="rounded-md px-3 py-1 text-sm text-zinc-500 hover:text-zinc-950 disabled:opacity-50 dark:text-zinc-400 dark:hover:text-zinc-50"
+          className="rounded-full px-3.5 py-1.5 text-[13px] text-ink-2 transition-colors hover:text-ink disabled:opacity-50"
         >
           Cancel
         </button>

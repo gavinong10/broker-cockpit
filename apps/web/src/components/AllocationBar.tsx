@@ -1,42 +1,54 @@
 // Server component: horizontal allocation weight bars by symbol (incl. Cash).
-// dataviz: single series -> one validated hue (slot-1 blue, light #2a78d6 /
-// dark #3987e5), thin bars, 4px rounded data-end anchored to a square left
-// baseline, no legend (single series), text in text tokens (never series
-// color), tabular figures on the value column. Weights are always real, even
-// for masked viewers.
+// dataviz: single series -> one validated neutral accent (#4f8ef7, >=3:1 vs
+// the dark surface), slim h-2 rounded bars on a recessive track, no legend
+// (single series), text in text tokens (never series color), tabular
+// figures. Label + % share one muted line above each bar. More than 10
+// items collapse to top 8 + "Other" — pure display grouping, computed here.
+// Weights are always real, even for masked viewers.
 
 export type AllocationItem = { label: string; weightPct: number };
 
+const MAX_ITEMS = 10;
+const TOP_N = 8;
+
+/** Pure display grouping: >10 items -> top 8 by weight + an "Other" bucket. */
+function groupForDisplay(items: AllocationItem[]): AllocationItem[] {
+  if (items.length <= MAX_ITEMS) return items;
+  const sorted = [...items].sort((a, b) => b.weightPct - a.weightPct);
+  const top = sorted.slice(0, TOP_N);
+  const rest = sorted.slice(TOP_N);
+  const other = rest.reduce((sum, i) => sum + i.weightPct, 0);
+  return [...top, { label: `Other (${rest.length})`, weightPct: other }];
+}
+
 export default function AllocationBar({ items }: { items: AllocationItem[] }) {
-  const max = Math.max(...items.map((i) => i.weightPct), 0);
+  const shown = groupForDisplay(items);
+  const max = Math.max(...shown.map((i) => i.weightPct), 0);
 
   return (
     <section aria-label="Allocation by symbol">
-      <h2 className="mb-2 text-sm font-medium text-zinc-500 dark:text-zinc-400">
-        Allocation
-      </h2>
-      <ul className="flex flex-col gap-1.5">
-        {items.map((item) => {
+      <h2 className="micro-label mb-3">Allocation</h2>
+      <ul className="flex flex-col gap-3">
+        {shown.map((item) => {
           // Bar length scaled to the largest weight; shorts (negative
           // weight) render an empty track and carry the sign in the label.
           const frac = max > 0 ? Math.max(item.weightPct, 0) / max : 0;
           return (
             <li
               key={item.label}
-              className="grid grid-cols-[7rem_1fr_3.5rem] items-center gap-3"
               title={`${item.label}: ${item.weightPct.toFixed(2)}% of portfolio`}
             >
-              <span className="truncate text-sm text-zinc-950 dark:text-zinc-50">
-                {item.label}
-              </span>
-              <span className="h-2.5 overflow-hidden rounded-r bg-zinc-200/60 dark:bg-zinc-800">
+              <div className="mb-1 flex items-baseline justify-between gap-3 text-[13px]">
+                <span className="truncate text-ink-2">{item.label}</span>
+                <span className="tabular-nums text-ink-2">
+                  {item.weightPct.toFixed(1)}%
+                </span>
+              </div>
+              <span className="block h-2 overflow-hidden rounded-full bg-card">
                 <span
-                  className="block h-full rounded-r bg-[#2a78d6] dark:bg-[#3987e5]"
+                  className="block h-full rounded-full bg-accent"
                   style={{ width: `${(frac * 100).toFixed(2)}%` }}
                 />
-              </span>
-              <span className="text-right text-sm tabular-nums text-zinc-500 dark:text-zinc-400">
-                {item.weightPct.toFixed(1)}%
               </span>
             </li>
           );

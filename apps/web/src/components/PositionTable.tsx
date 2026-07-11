@@ -3,6 +3,8 @@
 // data row; expanding reveals the per-broker quantity breakdown. The
 // symbol/label cell links to the position detail page. Dollar cells AND qty
 // cells respect masking (qty x public per-share price reconstructs dollars).
+// Option rows show the human label with the raw OCC symbol as a faint
+// sub-line. Gain/loss color always rides with an explicit +/- sign.
 
 import Link from "next/link";
 import { display, displayQty, usd } from "@/lib/format";
@@ -13,8 +15,7 @@ const GRID =
 
 function DayChange({ value, masked }: { value: string; masked: boolean }) {
   const n = Number(value);
-  const color =
-    n >= 0 ? "text-[#006300] dark:text-[#0ca30c]" : "text-[#d03b3b]";
+  const color = n >= 0 ? "text-gain" : "text-loss";
   return (
     <span className={`text-right text-sm tabular-nums ${color}`}>
       {masked ? "•••" : `${n >= 0 ? "+" : ""}${usd(value)}`}
@@ -31,7 +32,7 @@ export default function PositionTable({
 }) {
   if (positions.length === 0) {
     return (
-      <p className="text-sm text-zinc-500 dark:text-zinc-400">
+      <p className="text-sm text-ink-2">
         No positions yet — they appear after the first broker sync.
       </p>
     );
@@ -39,17 +40,13 @@ export default function PositionTable({
 
   return (
     <section aria-label="Positions">
-      <h2 className="mb-2 text-sm font-medium text-zinc-500 dark:text-zinc-400">
-        Positions
-      </h2>
-      <div className={`${GRID} border-b border-zinc-200 pb-1 dark:border-zinc-800`}>
+      <h2 className="micro-label mb-3">Positions</h2>
+      <div className={`${GRID} border-b border-hairline pb-2`}>
         {["Symbol", "Qty", "Last price", "Day change", "Market value", "Unrealized P/L"].map(
           (h, i) => (
             <span
               key={h}
-              className={`text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400 ${
-                i === 0 ? "" : "text-right"
-              }`}
+              className={`micro-label ${i === 0 ? "" : "text-right"}`}
             >
               {h}
             </span>
@@ -62,59 +59,58 @@ export default function PositionTable({
           const pl = Number(p.unrealized_pl_usd);
           return (
             <li key={`${p.symbol}-${p.sec_type}`}>
-              <details className="group border-b border-zinc-100 dark:border-zinc-900">
+              <details className="group border-b border-hairline last:border-b-0">
                 <summary
-                  className={`${GRID} cursor-pointer list-none py-2 hover:bg-zinc-50 dark:hover:bg-zinc-900/50`}
+                  className={`${GRID} h-12 cursor-pointer list-none transition-colors hover:bg-hover`}
                 >
-                  <span>
-                    <Link
-                      href={`/positions/${encodeURIComponent(p.symbol)}`}
-                      className="text-sm font-medium text-zinc-950 underline-offset-2 hover:underline dark:text-zinc-50"
-                    >
-                      {label}
-                    </Link>
+                  <span className="min-w-0">
+                    <span className="flex items-center gap-2">
+                      <Link
+                        href={`/positions/${encodeURIComponent(p.symbol)}`}
+                        className="truncate text-sm font-medium text-ink underline-offset-2 hover:underline"
+                      >
+                        {label}
+                      </Link>
+                      {/* Basket chips: absent field = worker predates baskets. */}
+                      {(p.baskets ?? []).map((b) => (
+                        <Link
+                          key={b.slug}
+                          href={`/baskets/${encodeURIComponent(b.slug)}`}
+                          className="rounded-full border border-accent/40 px-2 py-px text-[10px] text-accent underline-offset-2 hover:underline"
+                        >
+                          {b.slug}
+                        </Link>
+                      ))}
+                    </span>
+                    {/* OCC symbol as a faint sub-line under option labels. */}
                     {p.sec_type === "OPT" && (
-                      <span className="ml-2 rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] uppercase text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
-                        option
+                      <span className="block truncate text-[11px] leading-4 text-ink-3">
+                        {p.symbol}
                       </span>
                     )}
-                    {/* Basket chips: absent field = worker predates baskets. */}
-                    {(p.baskets ?? []).map((b) => (
-                      <Link
-                        key={b.slug}
-                        href={`/baskets/${encodeURIComponent(b.slug)}`}
-                        className="ml-2 rounded bg-[#2a78d6]/10 px-1.5 py-0.5 text-[10px] text-[#2a78d6] underline-offset-2 hover:underline dark:bg-[#3987e5]/15 dark:text-[#3987e5]"
-                      >
-                        {b.slug}
-                      </Link>
-                    ))}
                   </span>
-                  <span className="text-right text-sm tabular-nums text-zinc-950 dark:text-zinc-50">
+                  <span className="text-right text-sm tabular-nums text-ink">
                     {displayQty(p.qty, masked)}
                   </span>
-                  <span className="text-right text-sm tabular-nums text-zinc-950 dark:text-zinc-50">
+                  <span className="text-right text-sm tabular-nums text-ink">
                     {p.last_price_usd === null ? "—" : display(p.last_price_usd, masked)}
                   </span>
                   <DayChange value={p.day_change_usd} masked={masked} />
-                  <span className="text-right text-sm tabular-nums text-zinc-950 dark:text-zinc-50">
+                  <span className="text-right text-sm tabular-nums text-ink">
                     {display(p.market_value_usd, masked)}
                   </span>
                   <span
                     className={`text-right text-sm tabular-nums ${
-                      pl >= 0
-                        ? "text-[#006300] dark:text-[#0ca30c]"
-                        : "text-[#d03b3b]"
+                      pl >= 0 ? "text-gain" : "text-loss"
                     }`}
                   >
                     {masked ? "•••" : `${pl >= 0 ? "+" : ""}${usd(p.unrealized_pl_usd)}`}
                   </span>
                 </summary>
-                <div className="pb-2 pl-4">
+                {/* Quiet indented sub-row: per-broker breakdown. */}
+                <div className="border-l border-hairline pb-3 pl-4 ml-1">
                   {p.brokers.map((b) => (
-                    <p
-                      key={b.broker}
-                      className="text-xs text-zinc-500 dark:text-zinc-400"
-                    >
+                    <p key={b.broker} className="text-xs leading-5 text-ink-2">
                       {b.broker}: {displayQty(b.qty, masked)}
                     </p>
                   ))}
