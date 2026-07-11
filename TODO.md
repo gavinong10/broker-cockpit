@@ -8,6 +8,8 @@
       screenshot of the actual IBKR auth-failure dialog.
       **Resume steps** (VPS, `/root/broker-cockpit`):
       ```bash
+      sed -i 's/^IB_ENABLED=false/IB_ENABLED=true/' .env   # re-enable the worker's reconnect loop
+      docker compose -f compose.yml -f compose.prod.yml up -d --build worker
       docker compose -f compose.yml -f compose.prod.yml up -d ib-gateway
       docker compose -f compose.yml -f compose.prod.yml logs -f ib-gateway   # watch for "IBC: Login has completed"
       docker compose -f compose.yml -f compose.prod.yml exec worker \
