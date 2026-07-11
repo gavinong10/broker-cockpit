@@ -1,0 +1,156 @@
+{
+  "slug": "ai-not-a-bubble-yet",
+  "name": "AI 'Not a Bubble (Just Yet)' Call-Spread Basket",
+  "thesis": "The AI infrastructure buildout persists through the option window ('not a bubble just yet'), expressed as defined-risk long-dated call verticals across the supply chain — compute (AMD, MRVL), neocloud/GPU landlords (NBIS, IREN, WULF, HUT, CIFR), optics/photonics (COHR, TSEM), power (BE, VICR) — with long strikes near the money so a +10-20% grind still pays, and short strikes at evidence-supported analyst-target zones rather than slogan doubles. ~$21.3k planned (~5.7% of portfolio), median breakeven +9%, max payouts at +20% to +95% moves.",
+  "source_ref": "5a6b9ddd-490e-4ae6-91c7-74db07e4140f",
+  "horizon": "17-29 months (Dec 2027 - Dec 2028 expiries)",
+  "invalidation": "The 'not a bubble yet' premise failing inside the window: hyperscaler capex guidance cuts, contracted-backlog cancellations, funding-quality cracks spreading (Meta-style 'excess compute' resale becoming widespread), or the basket compounding below roughly +5-8%/yr through the 2027-28 expiries. Tripwires: IREN Horizon-1 handoff (Q3 2026), CIFR AWS rent commencement (Aug 2026), hyperscaler 2027 capex guides (Oct 2026 - Jan 2027), 2027 HBM contract pricing.",
+  "legs": [],
+  "plan": {
+    "legs": [
+      {
+        "label": "AMD Dec-28 560/700",
+        "structure": [
+          {"occ": "AMD281215C00560000", "sec_type": "OPT", "ratio": 1},
+          {"occ": "AMD281215C00700000", "sec_type": "OPT", "ratio": -1}
+        ],
+        "qty": "1",
+        "planned_net_debit": "35.32",
+        "tolerance_pct": "5",
+        "breakeven_underlying": "595.32",
+        "max_value_usd": "14000",
+        "thesis_note": "Long leg near ATM; short 700 at the Goldman ~$640-target zone; both legs OI 600+ — most liquid structure in the book"
+      },
+      {
+        "label": "COHR Dec-27 320/390",
+        "structure": [
+          {"occ": "COHR271217C00320000", "sec_type": "OPT", "ratio": 1},
+          {"occ": "COHR271217C00390000", "sec_type": "OPT", "ratio": -1}
+        ],
+        "qty": "1",
+        "planned_net_debit": "20.00",
+        "tolerance_pct": "5",
+        "breakeven_underlying": "340.00",
+        "max_value_usd": "7000",
+        "thesis_note": "Max payout at consensus target ($387); +5.6% breakeven; long leg liquid (OI 218), short leg thin — patient limit"
+      },
+      {
+        "label": "IREN Sep-28 40/80",
+        "structure": [
+          {"occ": "IREN280915C00040000", "sec_type": "OPT", "ratio": 1},
+          {"occ": "IREN280915C00080000", "sec_type": "OPT", "ratio": -1}
+        ],
+        "qty": "3",
+        "planned_net_debit": "6.89",
+        "tolerance_pct": "5",
+        "breakeven_underlying": "46.89",
+        "max_value_usd": "12000",
+        "thesis_note": "Street mean target is the double; long leg lowered 50->40 cuts BE from +34% to +14%; 26 months runway; dilution treadmill is the drag"
+      },
+      {
+        "label": "NBIS Dec-28 220/330",
+        "structure": [
+          {"occ": "NBIS281215C00220000", "sec_type": "OPT", "ratio": 1},
+          {"occ": "NBIS281215C00330000", "sec_type": "OPT", "ratio": -1}
+        ],
+        "qty": "1",
+        "planned_net_debit": "17.23",
+        "tolerance_pct": "5",
+        "breakeven_underlying": "237.23",
+        "max_value_usd": "11000",
+        "thesis_note": "Short pulled back from 440 to street-high territory (max pays at +50%); revenue contracted (~$46B MSFT/Meta) but dilution + Meta-Compute two-sidedness cap conviction"
+      },
+      {
+        "label": "WULF Jun-28 22/32",
+        "structure": [
+          {"occ": "WULF280616C00022000", "sec_type": "OPT", "ratio": 1},
+          {"occ": "WULF280616C00032000", "sec_type": "OPT", "ratio": -1}
+        ],
+        "qty": "8",
+        "planned_net_debit": "2.65",
+        "tolerance_pct": "5",
+        "breakeven_underlying": "24.65",
+        "max_value_usd": "8000",
+        "thesis_note": "$12.8B signed Fluidstack/Google-backstopped contracts, pre-funded; short strike below the +76% mean target; most liquid new-name chain"
+      },
+      {
+        "label": "BE Jun-28 240/330",
+        "structure": [
+          {"occ": "BE280616C00240000", "sec_type": "OPT", "ratio": 1},
+          {"occ": "BE280616C00330000", "sec_type": "OPT", "ratio": -1}
+        ],
+        "qty": "1",
+        "planned_net_debit": "17.68",
+        "tolerance_pct": "5",
+        "breakeven_underlying": "257.68",
+        "max_value_usd": "9000",
+        "thesis_note": "$20B converting backlog (Oracle/Nebius/Brookfield); max payout at just +35%; only power name with real long-dated liquidity"
+      },
+      {
+        "label": "MRVL Jun-28 240/290",
+        "structure": [
+          {"occ": "MRVL280616C00240000", "sec_type": "OPT", "ratio": 1},
+          {"occ": "MRVL280616C00290000", "sec_type": "OPT", "ratio": -1}
+        ],
+        "qty": "1",
+        "planned_net_debit": "11.62",
+        "tolerance_pct": "5",
+        "breakeven_underlying": "251.62",
+        "max_value_usd": "5000",
+        "thesis_note": "Target +7%; short strike right on it — smallest, most-likely win; FY27 +40% guided, Maia ramp"
+      },
+      {
+        "label": "HUT Jun-28 105/130",
+        "structure": [
+          {"occ": "HUT280616C00105000", "sec_type": "OPT", "ratio": 1},
+          {"occ": "HUT280616C00130000", "sec_type": "OPT", "ratio": -1}
+        ],
+        "qty": "2",
+        "planned_net_debit": "5.47",
+        "tolerance_pct": "5",
+        "breakeven_underlying": "110.47",
+        "max_value_usd": "5000",
+        "thesis_note": "$16.8B contracted (River Bend/Beacon Point, Google/Anthropic-backstopped); strikes chosen inside the chain's only liquid band (105-160)"
+      },
+      {
+        "label": "CIFR Jun-28 22/32",
+        "structure": [
+          {"occ": "CIFR280616C00022000", "sec_type": "OPT", "ratio": 1},
+          {"occ": "CIFR280616C00032000", "sec_type": "OPT", "ratio": -1}
+        ],
+        "qty": "4",
+        "planned_net_debit": "2.40",
+        "tolerance_pct": "5",
+        "breakeven_underlying": "24.40",
+        "max_value_usd": "4000",
+        "thesis_note": "Restruck per the Romero reconciliation: max at +45% = his and the street's target; half-size until AWS rent commences (Aug 2026)"
+      },
+      {
+        "label": "TSEM Jan-28 220/310",
+        "structure": [
+          {"occ": "TSEM280121C00220000", "sec_type": "OPT", "ratio": 1},
+          {"occ": "TSEM280121C00310000", "sec_type": "OPT", "ratio": -1}
+        ],
+        "qty": "1",
+        "planned_net_debit": "22.48",
+        "tolerance_pct": "5",
+        "breakeven_underlying": "242.48",
+        "max_value_usd": "9000",
+        "thesis_note": "Consensus +41%, signed $1.3B SiPho contracts w/ prepayments — but a dead chain: bid-and-forget at theo-mid; a non-fill is acceptable"
+      },
+      {
+        "label": "VICR Jan-28 270/400",
+        "structure": [
+          {"occ": "VICR280121C00270000", "sec_type": "OPT", "ratio": 1},
+          {"occ": "VICR280121C00400000", "sec_type": "OPT", "ratio": -1}
+        ],
+        "qty": "1",
+        "planned_net_debit": "26.29",
+        "tolerance_pct": "5",
+        "breakeven_underlying": "296.29",
+        "max_value_usd": "13000",
+        "thesis_note": "Cleanest small-cap fundamentals (mean +49%, 6up/0dn); theo-only chain: bid-and-forget at theo-mid; a non-fill is acceptable"
+      }
+    ]
+  }
+}
