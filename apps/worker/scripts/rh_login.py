@@ -7,7 +7,10 @@ Run once on a trusted machine (handles MFA):
 Prompts for username/password/MFA interactively — credentials are NEVER read
 from env vars or argv and are never persisted; only the session token pickle
 is written. For the VPS, scp the pickle to /root/broker-cockpit/secrets/.
-The session lasts ~30 days; re-run this script when it expires.
+Re-run this script whenever the session expires (the dashboard/Discord will
+nag). Note: if a still-valid pickle exists, robin_stocks reuses it and the
+printed lifetime just echoes the request — delete the pickle first to force a
+fresh grant.
 """
 import getpass
 import shutil
@@ -35,10 +38,17 @@ def main() -> int:
         mfa_code=mfa_code,
         store_session=True,
         pickle_path=str(SECRETS_DIR),
+        # Request a long-lived token; RH clamps to its server-side max. The
+        # default (86400 = 24h) would force daily re-logins on the headless
+        # worker, which has no refresh flow by design.
+        expiresIn=86400 * 365,
     )
     if not result or "access_token" not in result:
         print("Login failed — no session stored.", file=sys.stderr)
         return 1
+    granted = result.get("expires_in")
+    if granted:
+        print(f"Token lifetime granted by Robinhood: {granted} seconds (~{granted / 86400:.1f} days)")
 
     if ROBIN_STOCKS_PICKLE.exists():
         shutil.move(str(ROBIN_STOCKS_PICKLE), str(SESSION_FILE))
