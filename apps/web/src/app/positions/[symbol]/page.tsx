@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import JournalSection, { type JournalEntry } from "@/components/JournalSection";
 import { display, displayQty, usd } from "@/lib/format";
 import { positionLabel, type PositionDetail } from "@/lib/portfolio";
 import { getViewerContext } from "@/lib/viewerContext";
@@ -31,11 +32,17 @@ export default async function PositionPage({
 }) {
   const { symbol } = await params;
 
-  const { masked } = await getViewerContext();
+  const { masked, role } = await getViewerContext();
 
-  const { status, body } = await workerFetchRaw(
-    `/internal/positions/${encodeURIComponent(symbol)}`,
-  );
+  // Journal is owner-only BY DATA PATH: entries are fetched only when the
+  // effective view is owner, so viewer-preview shows exactly what a viewer
+  // gets — the private placeholder, with no entry data in the response.
+  const [{ status, body }, journalRes] = await Promise.all([
+    workerFetchRaw(`/internal/positions/${encodeURIComponent(symbol)}`),
+    role === "owner"
+      ? workerFetchRaw(`/internal/journal?symbol=${encodeURIComponent(symbol)}`)
+      : Promise.resolve({ status: 0, body: null as unknown }),
+  ]);
   if (status === 404) notFound();
   if (status !== 200) {
     return (
@@ -139,15 +146,22 @@ export default async function PositionPage({
         </ul>
       </section>
 
-      <section
-        aria-label="Journal"
-        className="rounded-xl border border-dashed border-hairline px-4 py-6 text-center"
-      >
-        <h2 className="micro-label">Journal — coming in Phase 2</h2>
-        <p className="mt-2 text-sm text-ink-3">
-          Trade notes and thesis tracking will live here.
-        </p>
-      </section>
+      {role === "owner" ? (
+        <JournalSection
+          symbol={detail.symbol}
+          entries={
+            journalRes.status === 200 ? (journalRes.body as JournalEntry[]) : []
+          }
+        />
+      ) : (
+        <section
+          aria-label="Journal"
+          className="rounded-xl border border-dashed border-hairline px-4 py-6 text-center"
+        >
+          <h2 className="micro-label">Journal</h2>
+          <p className="mt-2 text-sm text-ink-3">Private to the owner.</p>
+        </section>
+      )}
     </main>
   );
 }

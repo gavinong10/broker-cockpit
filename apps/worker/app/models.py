@@ -116,6 +116,15 @@ class BasketSnapshot(Base):
     value_usd: Mapped[Decimal] = mapped_column(Numeric(18, 2))
     __table_args__ = (UniqueConstraint("basket_id", "taken_on"),)
 
+class UnderlyingTag(Base):
+    """Theme tags per underlying ticker (ai, cpo-optics, data-center, power,
+    crypto, nuclear, ...). Options inherit their underlying's tags.
+    (Restored: the a7c1e90d2b14 migration and prod table exist; this class
+    went missing during concurrent worktree commits.)"""
+    __tablename__ = "underlying_tags"
+    underlying: Mapped[str] = mapped_column(String(32), primary_key=True)
+    tags: Mapped[list] = mapped_column(JSONB, default=list)
+
 class JournalEntry(Base):
     """Owner's trade journal: the searchable 'why' behind positions.
 

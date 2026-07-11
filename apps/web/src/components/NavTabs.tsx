@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Role } from "@/lib/roles";
 
-export type NavRoute = "/" | "/capabilities" | "/exposure" | "/admin";
+export type NavRoute = "/" | "/capabilities" | "/exposure" | "/admin" | "/journal";
 
 /** Minimal text-link nav for the dashboard header. The Capabilities tab is
  * owner-only cosmetically here; the /capabilities page re-checks the role
@@ -18,6 +18,7 @@ export default function NavTabs({
     { href: "/exposure", label: "Exposure" },
   ];
   if (role === "owner") {
+    tabs.push({ href: "/journal", label: "Journal" });
     tabs.push({ href: "/capabilities", label: "Capabilities" });
     tabs.push({ href: "/admin", label: "Users" });
   }

@@ -33,6 +33,18 @@ export async function workerPost(
   return { status: res.status, body };
 }
 
+export async function workerDelete(
+  path: string,
+): Promise<{ status: number; body: unknown }> {
+  const res = await fetch(`http://worker:8000${path}`, {
+    method: "DELETE",
+    headers: { "X-Internal-Token": process.env.INTERNAL_API_TOKEN! },
+    cache: "no-store",
+  });
+  const body = await res.json().catch(() => null);
+  return { status: res.status, body };
+}
+
 /**
  * Like workerFetch but never throws on HTTP errors: returns {status, body}
  * so callers can render error states (e.g. 502 {"error":"rh_auth"}) instead
