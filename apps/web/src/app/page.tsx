@@ -80,7 +80,7 @@ export default async function Home() {
         <div className="mx-auto flex h-12 w-full max-w-5xl items-center justify-between px-6">
           <div className="flex items-center gap-6">
             <span className="text-sm font-semibold text-ink">broker-cockpit</span>
-            <NavTabs role={role} active="/" />
+            <NavTabs active="/" />
           </div>
           <div className="flex items-center gap-4 text-[13px] text-ink-2">
             <span className="hidden sm:inline">
@@ -130,15 +130,17 @@ export default async function Home() {
           />
         )}
 
-        {/* Muted utility row: as-of stamp + owner-only refresh. The server
-            action re-verifies the role — this gating is cosmetic. Rendered
-            even when the portfolio fetch failed: that's exactly when the
-            owner needs the refresh button. */}
+        {/* Muted utility row: as-of stamp + RH session refresh. The button
+            renders for every role — the server action re-verifies the REAL
+            owner role and returns the clean permission error for viewers.
+            The prefilled RH username stays owner-only (it must not leak to
+            viewers or to owner-in-preview). Rendered even when the portfolio
+            fetch failed: that's exactly when the owner needs the refresh. */}
         <div className="-mt-6 flex flex-wrap items-start justify-between gap-3">
           <AsOfStamp lastSyncedAt={lastSyncedAt(portfolio?.accounts)} />
-          {role === "owner" && (
-            <RhRefreshButton defaultUsername={process.env.RH_USERNAME ?? ""} />
-          )}
+          <RhRefreshButton
+            defaultUsername={role === "owner" ? process.env.RH_USERNAME ?? "" : ""}
+          />
         </div>
 
         {portfolio && (

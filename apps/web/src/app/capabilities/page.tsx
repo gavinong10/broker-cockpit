@@ -1,13 +1,14 @@
-// Owner-only Capabilities page: renders every *.md in docs/capabilities as a
-// section. The directory is read AT REQUEST TIME so new capability docs show
-// up without a rebuild — in the container it's the read-only compose mount
-// /srv/docs/capabilities; in local `npm run dev` it falls back to the
-// repo-relative path.
+// Capabilities page (readable by every signed-in role — owner-approved:
+// infra docs are acceptable to viewers): renders every *.md in
+// docs/capabilities as a section. The directory is read AT REQUEST TIME so
+// new capability docs show up without a rebuild — in the container it's the
+// read-only compose mount /srv/docs/capabilities; in local `npm run dev` it
+// falls back to the repo-relative path.
 
 import fs from "node:fs/promises";
 import path from "node:path";
 import ReactMarkdown, { type Components } from "react-markdown";
-import type { Role } from "@/lib/roles";
+import { canRead } from "@/lib/roles";
 import { getViewerContext } from "@/lib/viewerContext";
 import SiteHeader from "@/components/SiteHeader";
 
@@ -114,22 +115,21 @@ const mdComponents: Components = {
   ),
 };
 
-function PageHeader({ role }: { role: Role }) {
-  return <SiteHeader role={role} active="/capabilities" />;
+function PageHeader() {
+  return <SiteHeader active="/capabilities" />;
 }
 
 export default async function CapabilitiesPage() {
   const { role } = await getViewerContext();
 
-  if (role !== "owner") {
-    // Docs contain operational details viewers must not see.
+  // Read-only for owner and viewer alike; only revoked (null-role) sessions
+  // are shut out, since these docs describe how the system operates.
+  if (!canRead(role)) {
     return (
       <>
-        <PageHeader role={role} />
+        <PageHeader />
         <main className="mx-auto flex w-full max-w-2xl flex-col gap-10 px-6 py-10 font-sans">
-          <p className="text-sm text-ink-2">
-            Not available — this page is owner-only.
-          </p>
+          <p className="text-sm text-ink-2">Not available.</p>
         </main>
       </>
     );
@@ -139,7 +139,7 @@ export default async function CapabilitiesPage() {
 
   return (
     <>
-      <PageHeader role={role} />
+      <PageHeader />
       {/* Readable prose measure. */}
       <main className="mx-auto flex w-full max-w-2xl flex-col gap-10 px-6 py-10 font-sans">
         {docs.length === 0 && (

@@ -1,12 +1,15 @@
 import SiteHeader from "@/components/SiteHeader";
 import JournalSection, { type JournalEntry } from "@/components/JournalSection";
+import { canRead } from "@/lib/roles";
 import { getViewerContext } from "@/lib/viewerContext";
 import { workerFetchRaw } from "@/lib/worker";
 
 export const dynamic = "force-dynamic";
 
-// Owner-only (by effective view, so viewer-preview shows the wall too):
-// journal notes and target/stop levels are unmaskable free text.
+// Readable by every signed-in role (entries + search — the owner accepted
+// that notes/targets/stops are shared free text, not maskable dollars).
+// Mutations (add/delete on the position pages) stay owner-only via the
+// server actions in actions/journal.ts.
 export default async function JournalPage({
   searchParams,
 }: {
@@ -17,13 +20,13 @@ export default async function JournalPage({
     getViewerContext(),
   ]);
 
-  if (view.role !== "owner") {
+  // Sessions whose role was revoked (null) read nothing — journal text is
+  // unmaskable, so it is only for current owner/viewer roles.
+  if (!canRead(view.role)) {
     return (
       <main className="mx-auto w-full max-w-5xl px-6 py-10 font-sans">
-        <SiteHeader role={view.role} active="/journal" />
-        <p className="mt-8 text-sm text-ink-3">
-          Not available — the journal is owner-only.
-        </p>
+        <SiteHeader active="/journal" />
+        <p className="mt-8 text-sm text-ink-3">Not available.</p>
       </main>
     );
   }
@@ -38,7 +41,7 @@ export default async function JournalPage({
 
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-6 py-10 font-sans">
-      <SiteHeader role={view.role} active="/journal" />
+      <SiteHeader active="/journal" />
 
       <form method="GET" className="flex flex-wrap items-center gap-3">
         <input

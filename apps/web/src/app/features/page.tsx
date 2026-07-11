@@ -1,15 +1,30 @@
-import { redirect } from "next/navigation";
-import { auth } from "@/auth";
 import SiteHeader from "@/components/SiteHeader";
+import { canRead } from "@/lib/roles";
+import { getViewerContext } from "@/lib/viewerContext";
 import { workerFetchRaw } from "@/lib/worker";
 import FeatureFactory, { type Feature } from "@/components/FeatureFactory";
 
 export const dynamic = "force-dynamic";
 
+// Readable by every signed-in role (list, statuses, prompts, diffs). The
+// write controls render for viewers too and submit — each server action in
+// actions/features.ts re-verifies the REAL owner role and returns the clean
+// permission error, so rendering here is UX, not the gate. Uses the
+// effective view so owner-in-preview sees exactly the viewer experience.
 export default async function FeaturesPage() {
-  const session = await auth();
-  const role = (session?.user as { role?: "owner" | "viewer" | null } | undefined)?.role ?? null;
-  if (role !== "owner") redirect("/");
+  const { role } = await getViewerContext();
+
+  // Revoked (null-role) sessions read nothing — prompts/diffs are internal.
+  if (!canRead(role)) {
+    return (
+      <div className="min-h-screen">
+        <SiteHeader active="/features" />
+        <main className="mx-auto w-full max-w-5xl px-6 py-8">
+          <p className="text-sm text-ink-2">Not available.</p>
+        </main>
+      </div>
+    );
+  }
 
   const [listRes, runnerRes] = await Promise.all([
     workerFetchRaw("/internal/features"),
@@ -23,7 +38,7 @@ export default async function FeaturesPage() {
 
   return (
     <div className="min-h-screen">
-      <SiteHeader role={role} active="/features" />
+      <SiteHeader active="/features" />
       <main className="mx-auto w-full max-w-5xl px-6 py-8">
         <div className="mb-6">
           <h1 className="text-lg font-semibold text-ink">Features</h1>

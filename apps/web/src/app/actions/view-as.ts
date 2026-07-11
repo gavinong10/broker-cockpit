@@ -6,13 +6,12 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { auth } from "@/auth";
+import { requireOwnerAction } from "@/app/actions/util";
 import { VIEWER_PREVIEW_COOKIE } from "@/lib/viewerContext";
 
 export async function enterViewerPreview() {
-  const session = await auth();
-  const role = (session?.user as { role?: string } | undefined)?.role;
-  if (role !== "owner") return;
+  const owner = await requireOwnerAction("viewer_preview.enter");
+  if (!owner) return;
   (await cookies()).set(VIEWER_PREVIEW_COOKIE, "1", {
     httpOnly: true,
     sameSite: "lax",

@@ -6,7 +6,8 @@
 // The password passes straight through to the worker and is never logged
 // or persisted anywhere in the web tier.
 
-import { auth } from "@/auth";
+import { requireOwnerAction } from "@/app/actions/util";
+import { PERMISSION_DENIED_MESSAGE } from "@/lib/roles";
 import { workerPost } from "@/lib/worker";
 
 export type RhRefreshState =
@@ -31,10 +32,9 @@ export async function refreshRobinhood(
   _prevState: RhRefreshState,
   formData: FormData,
 ): Promise<RhRefreshState> {
-  const session = await auth();
-  const user = session?.user as { role?: "owner" | "viewer" | null } | undefined;
-  if (user?.role !== "owner") {
-    return { kind: "error", message: "Not authorized — owner only." };
+  const owner = await requireOwnerAction("rh.refresh");
+  if (!owner) {
+    return { kind: "error", message: PERMISSION_DENIED_MESSAGE };
   }
 
   const username = String(formData.get("username") ?? "").trim();
@@ -53,7 +53,7 @@ export async function refreshRobinhood(
         username,
         password,
         ...(code ? { code } : {}),
-        actor: session?.user?.email ?? "unknown",
+        actor: owner.email,
       },
       { timeoutMs: 155_000 }, // device approval can take ~2 min
     ));

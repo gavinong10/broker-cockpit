@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { canWrite, canRead, isMasked, effectiveView } from "./roles";
+import {
+  canManageUsers,
+  canOperateFactory,
+  canRead,
+  canWrite,
+  effectiveView,
+  isMasked,
+  PERMISSION_DENIED_MESSAGE,
+} from "./roles";
 
 describe("isMasked — dollars are owner-only", () => {
   it("owner unmasked by default, masked only via own flag", () => {
@@ -29,6 +37,17 @@ describe("role guards", () => {
   it("null role can do nothing", () => {
     expect(canRead(null)).toBe(false);
     expect(canWrite(null)).toBe(false);
+  });
+  it("factory and user-admin actions are owner-only", () => {
+    expect(canOperateFactory("owner")).toBe(true);
+    expect(canOperateFactory("viewer")).toBe(false);
+    expect(canOperateFactory(null)).toBe(false);
+    expect(canManageUsers("owner")).toBe(true);
+    expect(canManageUsers("viewer")).toBe(false);
+    expect(canManageUsers(null)).toBe(false);
+  });
+  it("the shared permission error names the owner-only rule", () => {
+    expect(PERMISSION_DENIED_MESSAGE).toBe("You don't have permission — owner only.");
   });
 });
 

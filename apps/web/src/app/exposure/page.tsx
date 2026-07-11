@@ -16,7 +16,7 @@ export default async function ExposurePage({
 }: {
   searchParams: Promise<{ tag?: string }>;
 }) {
-  const { role, masked } = await getViewerContext();
+  const { masked } = await getViewerContext();
   const { tag } = await searchParams;
   const activeTag = tag || null;
 
@@ -27,7 +27,7 @@ export default async function ExposurePage({
 
   return (
     <>
-      <SiteHeader role={role} active="/exposure" />
+      <SiteHeader active="/exposure" />
       <main className="mx-auto flex w-full max-w-5xl flex-col gap-10 px-6 py-10 font-sans">
         {rows === null ? (
           <p className="text-sm text-ink-2">

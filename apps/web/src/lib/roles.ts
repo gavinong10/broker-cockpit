@@ -2,6 +2,15 @@ export type Role = "owner" | "viewer" | null;
 export const canRead = (r: Role) => r === "owner" || r === "viewer";
 export const canWrite = (r: Role) => r === "owner";
 
+/** Owner-only ACTION gates. Pages render read-only for viewers; these gate
+ * the mutations. The real boundary is each server action re-checking the
+ * REAL session role via auth() — never the rendered/effective view. */
+export const canOperateFactory = (r: Role) => r === "owner";
+export const canManageUsers = (r: Role) => r === "owner";
+
+/** The one message every owner-only action returns to non-owners. */
+export const PERMISSION_DENIED_MESSAGE = "You don't have permission — owner only.";
+
 /** Dollar amounts are owner-only. Non-owners are ALWAYS masked, regardless of
  * their mask_amounts flag; the flag remains as an extra owner-side toggle. */
 export const isMasked = (r: Role, maskFlag: boolean | undefined) =>

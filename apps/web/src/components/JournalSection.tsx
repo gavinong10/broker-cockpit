@@ -1,8 +1,10 @@
 "use client";
 
-// Owner-only journal thread + add-entry form. Rendered ONLY when the
-// effective view is owner (viewers and owner-in-preview get a private
-// placeholder from the parent, and never receive entry data).
+// Journal thread + add-entry form, rendered for every signed-in role.
+// Entries are readable by viewers (owner-accepted: notes/targets/stops are
+// shared free text). The add/delete controls render for viewers too and
+// submit — the server actions re-verify the REAL owner role and return the
+// clean permission error, shown inline. Rendering is UX, not the gate.
 
 import { useActionState } from "react";
 import Link from "next/link";

@@ -11,12 +11,15 @@ export const dynamic = "force-dynamic";
 export default async function AdminPage() {
   const { role } = await getViewerContext();
 
+  // Content is owner-only (guest emails, sign-in history, preview toggle);
+  // the page itself stays reachable and shows a clean notice. Effective view:
+  // an owner in viewer-preview sees this notice too, exactly like a viewer.
   if (role !== "owner") {
     return (
       <>
-        <SiteHeader role={role} active="/admin" />
+        <SiteHeader active="/admin" />
         <main className="mx-auto flex w-full max-w-2xl flex-col gap-10 px-6 py-10 font-sans">
-          <p className="text-sm text-ink-2">Not available — this page is owner-only.</p>
+          <p className="text-sm text-ink-2">This page is owner-only.</p>
         </main>
       </>
     );
@@ -32,7 +35,7 @@ export default async function AdminPage() {
 
   return (
     <>
-      <SiteHeader role={role} active="/admin" />
+      <SiteHeader active="/admin" />
       <main className="mx-auto flex w-full max-w-2xl flex-col gap-10 px-6 py-10 font-sans">
         <div>
           <h1 className="text-xl font-semibold text-ink">Users</h1>
@@ -48,9 +51,10 @@ export default async function AdminPage() {
           <h2 className="micro-label">Verify what viewers see</h2>
           <p className="mt-2 text-sm text-ink-2">
             Switches your own session to the exact view-only rendering —
-            dollars and quantities masked, owner tools hidden — so you can
-            check for information leaks before inviting someone. An amber bar
-            with an exit button stays visible while active.
+            dollars and quantities masked, journal/features/capabilities
+            visible read-only, this page reduced to its owner-only notice —
+            so you can check for information leaks before inviting someone.
+            An amber bar with an exit button stays visible while active.
           </p>
           <form action={enterViewerPreview} className="mt-3">
             <button

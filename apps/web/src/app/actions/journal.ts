@@ -1,31 +1,23 @@
 "use server";
 
-// Owner-only journal mutations. The role check here is the security
-// boundary; page-level gating is cosmetic. The journal is owner-only by
-// design: notes and target/stop levels are free-form dollars that masking
-// cannot reliably scrub, so viewers never receive entry data at all.
+// Journal mutations are owner-only; the requireOwnerAction() check here is
+// the security boundary (viewers can see journal entries — the owner chose
+// to share notes/targets/stops — and the forms render for them, but every
+// create/delete attempt must fail server-side with the standard error).
 
 import { revalidatePath } from "next/cache";
-import { auth } from "@/auth";
+import { requireOwnerAction } from "@/app/actions/util";
+import { PERMISSION_DENIED_MESSAGE } from "@/lib/roles";
 import { workerDelete, workerPost } from "@/lib/worker";
 
 export type JournalFormState = { ok: boolean; error: string | null };
-
-async function requireOwner(): Promise<{ email: string } | null> {
-  const session = await auth();
-  const user = session?.user as
-    | { role?: "owner" | "viewer" | null; email?: string | null }
-    | undefined;
-  if (user?.role !== "owner" || !user.email) return null;
-  return { email: user.email };
-}
 
 export async function addJournalEntry(
   _prev: JournalFormState,
   formData: FormData,
 ): Promise<JournalFormState> {
-  const owner = await requireOwner();
-  if (!owner) return { ok: false, error: "Not authorized — owner only." };
+  const owner = await requireOwnerAction("journal.add");
+  if (!owner) return { ok: false, error: PERMISSION_DENIED_MESSAGE };
 
   const symbol = String(formData.get("symbol") ?? "").trim();
   const tag = String(formData.get("tag") ?? "").trim();
@@ -62,8 +54,8 @@ export async function deleteJournalEntry(
   _prev: JournalFormState,
   formData: FormData,
 ): Promise<JournalFormState> {
-  const owner = await requireOwner();
-  if (!owner) return { ok: false, error: "Not authorized — owner only." };
+  const owner = await requireOwnerAction("journal.delete");
+  if (!owner) return { ok: false, error: PERMISSION_DENIED_MESSAGE };
   const id = Number(formData.get("id"));
   if (!Number.isInteger(id) || id <= 0) return { ok: false, error: "Bad entry id." };
   const { status } = await workerDelete(`/internal/journal/${id}`);

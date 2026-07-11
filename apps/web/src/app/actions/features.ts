@@ -1,18 +1,16 @@
 "use server";
 
 // Feature-factory server actions. EVERY action re-verifies owner server-side —
-// the hidden tab is cosmetic. These proxy to the worker, which is the only
-// component that can reach the host build runner (over a forced-command SSH key).
+// the /features page renders for viewers too, so this check IS the boundary
+// (buttons rendering is UX, not the gate). These proxy to the worker, which is
+// the only component that can reach the host build runner (over a
+// forced-command SSH key); the worker call runs with the internal token
+// regardless of user role, so nothing below this check may be reached by a
+// non-owner. Refused attempts are audit-logged as perm.denied.
 
-import { auth } from "@/auth";
+import { requireOwnerAction } from "@/app/actions/util";
+import { PERMISSION_DENIED_MESSAGE } from "@/lib/roles";
 import { workerPost } from "@/lib/worker";
-
-async function requireOwner(): Promise<{ ok: true; email: string } | { ok: false }> {
-  const session = await auth();
-  const u = session?.user as { role?: string; email?: string } | undefined;
-  if (u?.role !== "owner") return { ok: false };
-  return { ok: true, email: u.email ?? "owner" };
-}
 
 export type ActionResult = { ok: boolean; message: string };
 
@@ -20,8 +18,8 @@ export async function createFeature(
   _prev: ActionResult,
   formData: FormData,
 ): Promise<ActionResult> {
-  const owner = await requireOwner();
-  if (!owner.ok) return { ok: false, message: "Owner only." };
+  const owner = await requireOwnerAction("feature.create");
+  if (!owner) return { ok: false, message: PERMISSION_DENIED_MESSAGE };
   const prompt = String(formData.get("prompt") ?? "").trim();
   const model = String(formData.get("model") ?? "").trim() || undefined;
   if (prompt.length < 20) return { ok: false, message: "Describe the feature in a bit more detail." };
@@ -48,8 +46,8 @@ export async function createFeature(
 }
 
 export async function factoryPause(paused: boolean): Promise<ActionResult> {
-  const owner = await requireOwner();
-  if (!owner.ok) return { ok: false, message: "Owner only." };
+  const owner = await requireOwnerAction(paused ? "factory.pause" : "factory.resume");
+  if (!owner) return { ok: false, message: PERMISSION_DENIED_MESSAGE };
   try {
     const { status, body } = await workerPost(
       `/internal/features/runner/${paused ? "pause" : "resume"}`,
@@ -70,8 +68,8 @@ export async function featureAction(
   slug: string,
   verb: "accept" | "revert" | "sync" | "kill",
 ): Promise<ActionResult> {
-  const owner = await requireOwner();
-  if (!owner.ok) return { ok: false, message: "Owner only." };
+  const owner = await requireOwnerAction(`feature.${verb}`);
+  if (!owner) return { ok: false, message: PERMISSION_DENIED_MESSAGE };
   try {
     const { status, body } = await workerPost(
       `/internal/features/${encodeURIComponent(slug)}/${verb}`,

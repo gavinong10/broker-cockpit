@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import JournalSection, { type JournalEntry } from "@/components/JournalSection";
 import { display, displayQty, usd } from "@/lib/format";
 import { positionLabel, type PositionDetail } from "@/lib/portfolio";
+import { canRead } from "@/lib/roles";
 import { getViewerContext } from "@/lib/viewerContext";
 import { workerFetchRaw } from "@/lib/worker";
 
@@ -34,12 +35,15 @@ export default async function PositionPage({
 
   const { masked, role } = await getViewerContext();
 
-  // Journal is owner-only BY DATA PATH: entries are fetched only when the
-  // effective view is owner, so viewer-preview shows exactly what a viewer
-  // gets — the private placeholder, with no entry data in the response.
+  // Journal entries are readable by every signed-in role (owner-accepted:
+  // notes/targets/stops are shared free text). The add/delete controls render
+  // for everyone too — the server actions in actions/journal.ts re-verify the
+  // REAL owner role and return the clean permission error for viewers. Only
+  // revoked (null-role) sessions get no entry data at all: skip the fetch so
+  // nothing unmaskable is even in the response.
   const [{ status, body }, journalRes] = await Promise.all([
     workerFetchRaw(`/internal/positions/${encodeURIComponent(symbol)}`),
-    role === "owner"
+    canRead(role)
       ? workerFetchRaw(`/internal/journal?symbol=${encodeURIComponent(symbol)}`)
       : Promise.resolve({ status: 0, body: null as unknown }),
   ]);
@@ -146,7 +150,7 @@ export default async function PositionPage({
         </ul>
       </section>
 
-      {role === "owner" ? (
+      {canRead(role) ? (
         <JournalSection
           symbol={detail.symbol}
           entries={
@@ -159,7 +163,7 @@ export default async function PositionPage({
           className="rounded-xl border border-dashed border-hairline px-4 py-6 text-center"
         >
           <h2 className="micro-label">Journal</h2>
-          <p className="mt-2 text-sm text-ink-3">Private to the owner.</p>
+          <p className="mt-2 text-sm text-ink-3">Not available.</p>
         </section>
       )}
     </main>

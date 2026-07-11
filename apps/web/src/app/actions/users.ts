@@ -5,27 +5,19 @@
 // Every mutation lands in audit_log with the acting owner as actor.
 
 import { revalidatePath } from "next/cache";
-import { auth } from "@/auth";
+import { requireOwnerAction } from "@/app/actions/util";
 import { auditFromWeb, deleteViewer, insertViewer } from "@/db";
+import { PERMISSION_DENIED_MESSAGE } from "@/lib/roles";
 import { isValidEmail, normalizeEmail } from "@/lib/users";
 
 export type UserAdminState = { ok: string | null; error: string | null };
-
-async function requireOwner(): Promise<{ email: string } | null> {
-  const session = await auth();
-  const user = session?.user as
-    | { role?: "owner" | "viewer" | null; email?: string | null }
-    | undefined;
-  if (user?.role !== "owner" || !user.email) return null;
-  return { email: user.email };
-}
 
 export async function addViewer(
   _prev: UserAdminState,
   formData: FormData,
 ): Promise<UserAdminState> {
-  const owner = await requireOwner();
-  if (!owner) return { ok: null, error: "Not authorized — owner only." };
+  const owner = await requireOwnerAction("user.add");
+  if (!owner) return { ok: null, error: PERMISSION_DENIED_MESSAGE };
 
   const raw = String(formData.get("email") ?? "");
   if (!isValidEmail(raw)) return { ok: null, error: "That doesn't look like a valid email." };
@@ -46,8 +38,8 @@ export async function removeViewer(
   _prev: UserAdminState,
   formData: FormData,
 ): Promise<UserAdminState> {
-  const owner = await requireOwner();
-  if (!owner) return { ok: null, error: "Not authorized — owner only." };
+  const owner = await requireOwnerAction("user.remove");
+  if (!owner) return { ok: null, error: PERMISSION_DENIED_MESSAGE };
 
   const email = normalizeEmail(String(formData.get("email") ?? ""));
   if (email === normalizeEmail(owner.email)) {
