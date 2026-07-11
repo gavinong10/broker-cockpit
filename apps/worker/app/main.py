@@ -2,12 +2,17 @@ import asyncio
 import json
 import os
 
+from dataclasses import asdict
+
 from fastapi import Depends, FastAPI
+from fastapi.responses import JSONResponse
 from sqlalchemy import create_engine, text
 from app.config import settings
 from app.heartbeat import heartbeat_loop
 from app.ibkr import gateway
 from app.internal_auth import require_internal
+from app.robinhood import RHAuthError, sync_robinhood
+from app.scheduler import sync_loop
 
 app = FastAPI()
 _engine = None
@@ -69,6 +74,20 @@ async def start_heartbeat():
 def health():
     return {"db": check_db(), "gateway": "connected" if gateway.connected else "down"}
 
+@app.on_event("startup")
+async def start_sync_loop():
+    asyncio.create_task(sync_loop(get_engine()))
+
 @app.get("/internal/ping", dependencies=[Depends(require_internal)])
 def internal_ping():
     return {"pong": True}
+
+@app.post("/internal/sync/robinhood", dependencies=[Depends(require_internal)])
+async def trigger_robinhood_sync():
+    try:
+        result = await asyncio.to_thread(sync_robinhood, get_engine())
+    except RHAuthError as exc:
+        return JSONResponse(status_code=502, content={"error": "rh_auth", "detail": str(exc)})
+    body = asdict(result)
+    body["cash_usd"] = str(body["cash_usd"])  # Decimals serialize as strings
+    return body
