@@ -10,6 +10,7 @@ from sqlalchemy import create_engine, text
 from app.config import settings
 from app.heartbeat import heartbeat_loop
 from app.ibkr import gateway
+from app import ibkr_sync
 from app.internal_auth import require_internal
 from app.portfolio_api import router as portfolio_router
 from app.robinhood import RHAuthError, sync_robinhood
@@ -57,6 +58,9 @@ gateway.ib.disconnectedEvent += _audit_gateway_disconnect
 
 @app.on_event("startup")
 async def start_gateway():
+    # on every successful connect, (re)start the 15-min IBKR position sync;
+    # ibkr_sync.start_sync_task guards against double-starts on reconnects
+    gateway.on_connect = lambda: ibkr_sync.start_sync_task(get_engine(), gateway)
     asyncio.create_task(gateway.connect_forever())
 
 def _heartbeat_status() -> dict:

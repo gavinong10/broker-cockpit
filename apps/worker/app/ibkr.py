@@ -7,6 +7,7 @@ class Gateway:
     def __init__(self) -> None:
         self.ib = IB()
         self.ib.disconnectedEvent += self._on_disconnect
+        self.on_connect = None  # optional hook, set by main.py; fired after each successful connect
 
     @property
     def connected(self) -> bool:
@@ -22,6 +23,8 @@ class Gateway:
                                                clientId=settings.ib_client_id)
                     alert("gateway.connected", "IB Gateway session established")
                     delay = 5
+                    if self.on_connect is not None:
+                        self.on_connect()
                 except Exception as e:
                     if delay > 60:  # suppress alerts during normal gateway boot
                         alert("gateway.connect_failed", f"{type(e).__name__}: {e}")
