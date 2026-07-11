@@ -1,10 +1,18 @@
-"use client";
+// "Data as of {timestamp}" — rendered in America/Chicago with an explicit
+// zone label (e.g. "CDT") so freshness is unambiguous wherever it's viewed.
+// Fixed zone = identical server/client output, so this can be a server
+// component (no hydration concerns). Visible to every role: a sync
+// timestamp reveals no dollar amounts.
 
-// "Data as of {timestamp}" — client component so the timestamp localizes to
-// the VIEWER's locale/timezone, not the server container's (usually UTC).
-// suppressHydrationWarning: the server-rendered string may differ from the
-// client's localization; the client value wins after hydration.
-// Visible to every role: a sync timestamp reveals no dollar amounts.
+const CHICAGO_FMT = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/Chicago",
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+  timeZoneName: "short",
+});
 
 export default function AsOfStamp({ lastSyncedAt }: { lastSyncedAt: string | null }) {
   return (
@@ -14,8 +22,8 @@ export default function AsOfStamp({ lastSyncedAt }: { lastSyncedAt: string | nul
       ) : (
         <>
           Data as of{" "}
-          <time dateTime={lastSyncedAt} suppressHydrationWarning>
-            {new Date(lastSyncedAt).toLocaleString()}
+          <time dateTime={lastSyncedAt}>
+            {CHICAGO_FMT.format(new Date(lastSyncedAt))}
           </time>
         </>
       )}
