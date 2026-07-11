@@ -3,6 +3,8 @@ node_modules/
 __pycache__/
 .venv/
 .env
+.env.*
+!.env.example
 *.pyc
 .DS_Store
 backups/
