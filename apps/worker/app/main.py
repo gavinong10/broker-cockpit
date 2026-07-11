@@ -11,11 +11,13 @@ from app.config import settings
 from app.heartbeat import heartbeat_loop
 from app.ibkr import gateway
 from app.internal_auth import require_internal
+from app.portfolio_api import router as portfolio_router
 from app.robinhood import RHAuthError, sync_robinhood
 from app.scheduler import sync_loop
 from app.snapshots import record_snapshot, snapshot_loop
 
 app = FastAPI()
+app.include_router(portfolio_router)
 _engine = None
 
 def get_engine():
