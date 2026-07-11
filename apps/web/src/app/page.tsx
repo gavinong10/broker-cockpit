@@ -3,10 +3,12 @@ import { isMasked } from "@/lib/roles";
 import { workerFetchRaw } from "@/lib/worker";
 import {
   positionLabel,
+  type Basket,
   type Portfolio,
   type PortfolioAccount,
   type SnapshotPoint,
 } from "@/lib/portfolio";
+import BasketCards from "@/components/BasketCards";
 import PortfolioHeader from "@/components/PortfolioHeader";
 import AllocationBar from "@/components/AllocationBar";
 import PositionTable from "@/components/PositionTable";
@@ -55,12 +57,18 @@ export default async function Home() {
   const role = user?.role ?? null;
   const masked = isMasked(role, user?.mask_amounts);
 
-  const [{ status, body }, snapshotsRes] = await Promise.all([
+  const [{ status, body }, snapshotsRes, basketsRes] = await Promise.all([
     workerFetchRaw("/internal/portfolio"),
     workerFetchRaw("/internal/snapshots?days=90"),
+    workerFetchRaw("/internal/baskets"),
   ]);
   const snapshots =
     snapshotsRes.status === 200 ? (snapshotsRes.body as SnapshotPoint[]) : null;
+  // Non-200 (e.g. a worker that predates baskets) silently hides the section.
+  const baskets =
+    basketsRes.status === 200 && Array.isArray(basketsRes.body)
+      ? (basketsRes.body as Basket[])
+      : [];
   const rhAuthExpired =
     status === 502 && (body as { error?: string } | null)?.error === "rh_auth";
   const portfolio = status === 200 ? (body as Portfolio) : null;
@@ -144,6 +152,8 @@ export default async function Home() {
           />
 
           {snapshots !== null && <ValueChart snapshots={snapshots} masked={masked} />}
+
+          {baskets.length > 0 && <BasketCards baskets={baskets} masked={masked} />}
 
           <PositionTable positions={portfolio.positions} masked={masked} />
         </>

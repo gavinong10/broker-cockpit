@@ -21,9 +21,11 @@ function shortDate(iso: string): string {
 export default function ValueChart({
   snapshots,
   masked,
+  title = "Portfolio value over time",
 }: {
   snapshots: SnapshotPoint[];
   masked: boolean;
+  title?: string;
 }) {
   const note = (text: string) => (
     <p className="text-sm text-zinc-500 dark:text-zinc-400">{text}</p>
@@ -31,13 +33,13 @@ export default function ValueChart({
 
   const heading = (
     <h2 className="mb-2 text-sm font-medium text-zinc-500 dark:text-zinc-400">
-      Portfolio value over time
+      {title}
     </h2>
   );
 
   if (snapshots.length === 0) {
     return (
-      <section aria-label="Portfolio value over time">
+      <section aria-label={title}>
         {heading}
         {note("No snapshots yet — history accumulates from go-live, one point per day.")}
       </section>
@@ -71,7 +73,7 @@ export default function ValueChart({
   const labelled = new Set([last, minIdx, maxIdx]);
 
   return (
-    <section aria-label="Portfolio value over time">
+    <section aria-label={title}>
       {heading}
       <svg
         viewBox={`0 0 ${W} ${H}`}

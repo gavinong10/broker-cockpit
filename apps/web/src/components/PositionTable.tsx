@@ -78,6 +78,16 @@ export default function PositionTable({
                         option
                       </span>
                     )}
+                    {/* Basket chips: absent field = worker predates baskets. */}
+                    {(p.baskets ?? []).map((b) => (
+                      <Link
+                        key={b.slug}
+                        href={`/baskets/${encodeURIComponent(b.slug)}`}
+                        className="ml-2 rounded bg-[#2a78d6]/10 px-1.5 py-0.5 text-[10px] text-[#2a78d6] underline-offset-2 hover:underline dark:bg-[#3987e5]/15 dark:text-[#3987e5]"
+                      >
+                        {b.slug}
+                      </Link>
+                    ))}
                   </span>
                   <span className="text-right text-sm tabular-nums text-zinc-950 dark:text-zinc-50">
                     {displayQty(p.qty, masked)}
