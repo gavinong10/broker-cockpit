@@ -2,7 +2,7 @@
 
 import { useActionState, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { createFeature, featureAction, type ActionResult } from "@/app/actions/features";
+import { createFeature, factoryPause, featureAction, type ActionResult } from "@/app/actions/features";
 
 export type Feature = {
   slug: string;
@@ -26,7 +26,7 @@ function StatusChip({ status }: { status: string }) {
     status === BUILT ? "border-accent text-accent"
     : status === ACCEPTED ? "border-gain text-gain"
     : status === "reverted" || status === "discarded" ? "border-hairline text-ink-3"
-    : status.startsWith("failed") ? "border-loss text-loss"
+    : status.startsWith("failed") || status === "killed" ? "border-loss text-loss"
     : "border-hairline text-ink-2";
   const label = ACTIVE.has(status) ? "building…" : status.replace(/_/g, " ");
   return (
@@ -39,21 +39,59 @@ function StatusChip({ status }: { status: string }) {
 export default function FeatureFactory({
   initialFeatures,
   runnerConfigured,
+  runnerPaused,
 }: {
   initialFeatures: Feature[];
   runnerConfigured: boolean;
+  runnerPaused: boolean;
 }) {
   const router = useRouter();
   const [state, submit, pending] = useActionState<ActionResult, FormData>(createFeature, {
     ok: true,
     message: "",
   });
+  const [toggling, startToggle] = useTransition();
+  const [toggleMsg, setToggleMsg] = useState("");
+
+  function togglePause() {
+    startToggle(async () => {
+      const r = await factoryPause(!runnerPaused);
+      setToggleMsg(r.message);
+      router.refresh();
+    });
+  }
 
   return (
     <div className="flex flex-col gap-8">
       {!runnerConfigured && (
         <div className="rounded-md border border-loss/50 bg-loss/10 px-4 py-2 text-sm text-loss">
           Build runner not configured on the host — see docs/capabilities/feature-factory.md.
+        </div>
+      )}
+
+      {runnerConfigured && (
+        <div
+          className={`flex items-center justify-between gap-3 rounded-md border px-4 py-2 text-sm ${
+            runnerPaused ? "border-loss/50 bg-loss/10 text-loss" : "border-hairline bg-card text-ink-2"
+          }`}
+        >
+          <span>
+            {runnerPaused
+              ? "Factory PAUSED — new builds are refused by the host runner."
+              : "Factory active."}
+            {toggleMsg && <span className="ml-2 text-ink-3">{toggleMsg}</span>}
+          </span>
+          <button
+            onClick={togglePause}
+            disabled={toggling}
+            className={`shrink-0 rounded-md border px-3 py-1 text-[13px] font-medium disabled:opacity-50 ${
+              runnerPaused
+                ? "border-gain/50 text-gain hover:bg-gain/10"
+                : "border-loss/50 text-loss hover:bg-loss/10"
+            }`}
+          >
+            {toggling ? "…" : runnerPaused ? "Resume factory" : "Pause factory"}
+          </button>
         </div>
       )}
 
@@ -79,10 +117,10 @@ export default function FeatureFactory({
           </select>
           <button
             type="submit"
-            disabled={pending || !runnerConfigured}
+            disabled={pending || !runnerConfigured || runnerPaused}
             className="rounded-md bg-accent px-4 py-1.5 text-sm font-medium text-white disabled:opacity-50"
           >
-            {pending ? "Starting…" : "Build feature"}
+            {pending ? "Starting…" : runnerPaused ? "Paused" : "Build feature"}
           </button>
         </div>
         {state.message && (
@@ -127,7 +165,7 @@ function FeatureRow({ f }: { f: Feature }) {
     setDiff(res.ok ? await res.text() : "Could not load diff.");
   }
 
-  function act(verb: "accept" | "revert" | "sync") {
+  function act(verb: "accept" | "revert" | "sync" | "kill") {
     startBusy(async () => {
       const r = await featureAction(f.slug, verb);
       setMsg(r.message);
@@ -169,7 +207,7 @@ function FeatureRow({ f }: { f: Feature }) {
               Accept
             </button>
           )}
-          {(f.status === BUILT || f.status.startsWith("failed") || f.status === "created") && (
+          {(f.status === BUILT || f.status.startsWith("failed") || f.status === "killed" || f.status === "created") && (
             <button
               onClick={() => act("revert")}
               disabled={busy}
@@ -190,6 +228,15 @@ function FeatureRow({ f }: { f: Feature }) {
           {ACTIVE.has(f.status) && (
             <button onClick={() => act("sync")} disabled={busy} className="rounded-md border border-hairline px-3 py-1 text-[13px] text-ink-2 hover:bg-hover disabled:opacity-50">
               Check status
+            </button>
+          )}
+          {f.status === "building" && (
+            <button
+              onClick={() => act("kill")}
+              disabled={busy}
+              className="rounded-md border border-loss/50 px-3 py-1 text-[13px] font-medium text-loss hover:bg-loss/10 disabled:opacity-50"
+            >
+              Stop
             </button>
           )}
         </div>

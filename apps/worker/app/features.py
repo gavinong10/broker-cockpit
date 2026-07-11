@@ -3,8 +3,9 @@
 SECURITY: the worker talks to the host ONLY through an SSH key whose
 authorized_keys entry forces scripts/feature_runner.sh as the command —
 this module cannot execute arbitrary host commands even if compromised.
-The builder itself runs on the host with a scrubbed environment; see the
-runner script and docs/capabilities/feature-factory.md.
+The builder itself runs on the host as the unprivileged `factory` user with
+a scrubbed environment; see the runner script and
+docs/capabilities/feature-factory.md.
 """
 import json
 import re
@@ -42,11 +43,30 @@ def _ssh(args: list[str], stdin: str | None = None, timeout: int = 120) -> str:
     return res.stdout
 
 
-def runner_configured() -> bool:
+def runner_status() -> dict:
+    """Ping the host runner. Line 1: configured|unconfigured; line 2: paused|active."""
     try:
-        return _ssh(["ping"], timeout=20).strip() == "configured"
+        lines = _ssh(["ping"], timeout=20).strip().splitlines()
     except RunnerError:
-        return False
+        return {"configured": False, "paused": False}
+    return {
+        "configured": bool(lines) and lines[0].strip() == "configured",
+        "paused": len(lines) > 1 and lines[1].strip() == "paused",
+    }
+
+
+def set_paused(engine: Engine | None, paused: bool, actor: str) -> dict:
+    """Kill switch (safety spec item 7): pause blocks create/build host-side."""
+    _ssh(["pause" if paused else "resume"], timeout=30)
+    _audit(engine, actor, "feature.factory_paused" if paused else "feature.factory_resumed", {})
+    return {"paused": paused}
+
+
+def kill_feature(engine: Engine, slug: str, actor: str) -> dict:
+    """Terminate a running build (signals the build's process group on the host)."""
+    _ssh(["kill", slug], timeout=60)
+    _audit(engine, actor, "feature.killed", {"slug": slug})
+    return sync_feature(engine, slug)
 
 
 def resolve_model(prompt: str, requested: str | None) -> str:

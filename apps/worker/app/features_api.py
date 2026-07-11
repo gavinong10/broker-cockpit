@@ -1,7 +1,9 @@
 """Feature-factory API (internal-auth). State machine:
-created -> building -> built | failed* -> accepted -> reverted
+created -> building -> built | failed* | killed -> accepted -> reverted
                                  \\-> discarded
 Accept/revert are the ONLY operations that touch the main branch, ever.
+Kill switch: /runner/pause + /runner/resume (host flag; create/build refuse
+while paused); /{slug}/kill terminates a running build.
 """
 import asyncio
 
@@ -44,7 +46,23 @@ def list_features():
 
 @router.get("/runner")
 def runner_state():
-    return {"configured": features.runner_configured()}
+    return features.runner_status()
+
+
+@router.post("/runner/pause")
+async def pause(req: ActorReq):
+    try:
+        return await asyncio.to_thread(features.set_paused, _engine(), True, req.actor)
+    except features.RunnerError as exc:
+        return JSONResponse(status_code=502, content={"error": str(exc)})
+
+
+@router.post("/runner/resume")
+async def resume(req: ActorReq):
+    try:
+        return await asyncio.to_thread(features.set_paused, _engine(), False, req.actor)
+    except features.RunnerError as exc:
+        return JSONResponse(status_code=502, content={"error": str(exc)})
 
 
 @router.post("")
@@ -101,6 +119,21 @@ async def sync(slug: str):
         return JSONResponse(status_code=502, content={"error": str(exc)})
 
 
+@router.post("/{slug}/kill")
+async def kill(slug: str, req: ActorReq):
+    with _engine().connect() as conn:
+        row = conn.execute(text("SELECT status FROM features WHERE slug=:s"),
+                           {"s": slug}).mappings().first()
+    if not row:
+        return JSONResponse(status_code=404, content={"detail": "unknown feature"})
+    if row["status"] not in ("created", "building"):
+        return JSONResponse(status_code=409, content={"error": f"no running build for status '{row['status']}'"})
+    try:
+        return await asyncio.to_thread(features.kill_feature, _engine(), slug, req.actor)
+    except features.RunnerError as exc:
+        return JSONResponse(status_code=502, content={"error": str(exc)})
+
+
 @router.post("/{slug}/accept")
 async def accept(slug: str, req: ActorReq):
     with _engine().connect() as conn:
@@ -130,7 +163,7 @@ async def revert(slug: str, req: ActorReq):
         except features.RunnerError as exc:
             return JSONResponse(status_code=502, content={"error": str(exc)})
         return {"status": "reverted"}
-    if row["status"] in ("built", "failed", "failed_no_changes", "failed_blocked_paths", "created", "unknown"):
+    if row["status"] in ("built", "failed", "failed_no_changes", "failed_blocked_paths", "killed", "created", "unknown"):
         try:
             await asyncio.to_thread(features.discard_feature, _engine(), slug, req.actor)
         except features.RunnerError as exc:

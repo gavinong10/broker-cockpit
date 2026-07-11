@@ -17,8 +17,9 @@ export default async function FeaturesPage() {
   ]);
   const features: Feature[] =
     listRes.status === 200 && Array.isArray(listRes.body) ? (listRes.body as Feature[]) : [];
-  const runnerConfigured =
-    runnerRes.status === 200 && (runnerRes.body as { configured?: boolean })?.configured === true;
+  const runnerBody = runnerRes.body as { configured?: boolean; paused?: boolean } | undefined;
+  const runnerConfigured = runnerRes.status === 200 && runnerBody?.configured === true;
+  const runnerPaused = runnerRes.status === 200 && runnerBody?.paused === true;
 
   return (
     <div className="min-h-screen">
@@ -33,7 +34,11 @@ export default async function FeaturesPage() {
             services, no secrets.
           </p>
         </div>
-        <FeatureFactory initialFeatures={features} runnerConfigured={runnerConfigured} />
+        <FeatureFactory
+          initialFeatures={features}
+          runnerConfigured={runnerConfigured}
+          runnerPaused={runnerPaused}
+        />
       </main>
     </div>
   );

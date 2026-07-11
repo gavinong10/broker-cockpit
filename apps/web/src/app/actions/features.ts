@@ -42,9 +42,28 @@ export async function createFeature(
   }
 }
 
+export async function factoryPause(paused: boolean): Promise<ActionResult> {
+  const owner = await requireOwner();
+  if (!owner.ok) return { ok: false, message: "Owner only." };
+  try {
+    const { status, body } = await workerPost(
+      `/internal/features/runner/${paused ? "pause" : "resume"}`,
+      { actor: owner.email },
+      { timeoutMs: 30_000 },
+    );
+    if (status !== 200) {
+      const b = body as { error?: string };
+      return { ok: false, message: b?.error ?? `Worker returned ${status}` };
+    }
+    return { ok: true, message: paused ? "Factory paused." : "Factory resumed." };
+  } catch {
+    return { ok: false, message: "Could not reach the build runner." };
+  }
+}
+
 export async function featureAction(
   slug: string,
-  verb: "accept" | "revert" | "sync",
+  verb: "accept" | "revert" | "sync" | "kill",
 ): Promise<ActionResult> {
   const owner = await requireOwner();
   if (!owner.ok) return { ok: false, message: "Owner only." };
