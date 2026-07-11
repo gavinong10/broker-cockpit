@@ -91,7 +91,16 @@ export default function UserAdmin({ users }: { users: UserRow[] }) {
         <p className="mt-3 max-w-md text-[13px] leading-relaxed text-ink-3">
           Viewers see holdings, weights and percent moves; every dollar amount and
           quantity is masked. New sign-ins also require the address to be listed as a
-          Test user on the Google OAuth consent screen (the app is in Testing mode).
+          Test user on the{" "}
+          <a
+            href="https://console.cloud.google.com/auth/audience?project=broker-cockpit-8496"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-accent underline underline-offset-2 hover:opacity-80"
+          >
+            Google OAuth consent screen
+          </a>{" "}
+          (the app is in Testing mode) — add them under &ldquo;Test users&rdquo; there.
         </p>
       </section>
     </div>
