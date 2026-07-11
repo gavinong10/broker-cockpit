@@ -1,14 +1,13 @@
-import { auth } from "@/auth";
 import { listUsers } from "@/db";
-import type { Role } from "@/lib/roles";
+import { enterViewerPreview } from "@/app/actions/view-as";
+import { getViewerContext } from "@/lib/viewerContext";
 import SiteHeader from "@/components/SiteHeader";
 import UserAdmin from "@/components/UserAdmin";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminPage() {
-  const session = await auth();
-  const role: Role = (session?.user as { role?: Role } | undefined)?.role ?? null;
+  const { role } = await getViewerContext();
 
   if (role !== "owner") {
     return (
@@ -34,6 +33,24 @@ export default async function AdminPage() {
           </p>
         </div>
         <UserAdmin users={users} />
+
+        <section className="rounded-xl border border-hairline bg-card p-5">
+          <h2 className="micro-label">Verify what viewers see</h2>
+          <p className="mt-2 text-sm text-ink-2">
+            Switches your own session to the exact view-only rendering —
+            dollars and quantities masked, owner tools hidden — so you can
+            check for information leaks before inviting someone. An amber bar
+            with an exit button stays visible while active.
+          </p>
+          <form action={enterViewerPreview} className="mt-3">
+            <button
+              type="submit"
+              className="rounded-full border border-hairline px-4 py-1.5 text-sm text-ink transition-colors hover:bg-hover"
+            >
+              Preview as viewer
+            </button>
+          </form>
+        </section>
       </main>
     </>
   );

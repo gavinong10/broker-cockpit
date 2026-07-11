@@ -1,17 +1,11 @@
-import { auth } from "@/auth";
 import ExposureChart from "@/components/ExposureChart";
 import SiteHeader from "@/components/SiteHeader";
 import { groupExposure, type ExposureRow } from "@/lib/exposure";
-import { isMasked } from "@/lib/roles";
+import { getViewerContext } from "@/lib/viewerContext";
 import { workerFetchRaw } from "@/lib/worker";
 
 export default async function ExposurePage() {
-  const session = await auth();
-  const u = session?.user as
-    | { role?: "owner" | "viewer" | null; mask_amounts?: boolean }
-    | undefined;
-  const role = u?.role ?? null;
-  const masked = isMasked(role, u?.mask_amounts);
+  const { role, masked } = await getViewerContext();
 
   const { status, body } = await workerFetchRaw("/internal/exposure");
   const rows = status === 200 && Array.isArray(body) ? (body as ExposureRow[]) : null;

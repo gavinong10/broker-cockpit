@@ -1,9 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { auth } from "@/auth";
 import { display, displayQty, usd } from "@/lib/format";
 import { positionLabel, type PositionDetail } from "@/lib/portfolio";
-import { isMasked } from "@/lib/roles";
+import { getViewerContext } from "@/lib/viewerContext";
 import { workerFetchRaw } from "@/lib/worker";
 
 function Stat({
@@ -32,11 +31,7 @@ export default async function PositionPage({
 }) {
   const { symbol } = await params;
 
-  const session = await auth();
-  const u = session?.user as
-    | { role?: "owner" | "viewer" | null; mask_amounts?: boolean }
-    | undefined;
-  const masked = isMasked(u?.role ?? null, u?.mask_amounts);
+  const { masked } = await getViewerContext();
 
   const { status, body } = await workerFetchRaw(
     `/internal/positions/${encodeURIComponent(symbol)}`,

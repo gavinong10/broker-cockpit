@@ -5,10 +5,9 @@
 
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { auth } from "@/auth";
 import { display, pct, usd } from "@/lib/format";
 import { positionLabel, type BasketDetail } from "@/lib/portfolio";
-import { isMasked } from "@/lib/roles";
+import { getViewerContext } from "@/lib/viewerContext";
 import { workerFetchRaw } from "@/lib/worker";
 import AllocationBar from "@/components/AllocationBar";
 import PositionTable from "@/components/PositionTable";
@@ -51,11 +50,7 @@ export default async function BasketPage({
 }) {
   const { slug } = await params;
 
-  const session = await auth();
-  const u = session?.user as
-    | { role?: "owner" | "viewer" | null; mask_amounts?: boolean }
-    | undefined;
-  const masked = isMasked(u?.role ?? null, u?.mask_amounts);
+  const { masked } = await getViewerContext();
 
   const { status, body } = await workerFetchRaw(
     `/internal/baskets/${encodeURIComponent(slug)}`,

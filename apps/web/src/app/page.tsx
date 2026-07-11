@@ -1,5 +1,5 @@
-import { auth, signOut } from "../auth";
-import { isMasked } from "@/lib/roles";
+import { signOut } from "../auth";
+import { getViewerContext } from "@/lib/viewerContext";
 import { workerFetchRaw } from "@/lib/worker";
 import {
   positionLabel,
@@ -53,13 +53,9 @@ function Banner({ tone, children }: { tone: "amber" | "red"; children: React.Rea
 }
 
 export default async function Home() {
-  const session = await auth();
-  const email = session?.user?.email ?? "unknown";
-  const user = session?.user as
-    | { role?: "owner" | "viewer" | null; mask_amounts?: boolean }
-    | undefined;
-  const role = user?.role ?? null;
-  const masked = isMasked(role, user?.mask_amounts);
+  // Effective view: an owner in viewer-preview renders as a masked viewer
+  // (owner tools hidden) — server actions still enforce the real role.
+  const { email, role, masked } = await getViewerContext();
 
   const [{ status, body }, snapshotsRes, basketsRes] = await Promise.all([
     workerFetchRaw("/internal/portfolio"),

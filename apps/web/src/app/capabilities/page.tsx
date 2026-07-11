@@ -7,8 +7,8 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import ReactMarkdown, { type Components } from "react-markdown";
-import { auth } from "@/auth";
 import type { Role } from "@/lib/roles";
+import { getViewerContext } from "@/lib/viewerContext";
 import SiteHeader from "@/components/SiteHeader";
 
 // fs reads must happen per request, never at build time.
@@ -119,9 +119,7 @@ function PageHeader({ role }: { role: Role }) {
 }
 
 export default async function CapabilitiesPage() {
-  const session = await auth();
-  const role: Role =
-    (session?.user as { role?: Role } | undefined)?.role ?? null;
+  const { role } = await getViewerContext();
 
   if (role !== "owner") {
     // Docs contain operational details viewers must not see.
