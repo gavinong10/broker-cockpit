@@ -181,6 +181,13 @@ def main() -> int:
     parser.add_argument(
         "--yes", action="store_true", help="skip the manifest confirmation prompt"
     )
+    parser.add_argument(
+        "--manifest",
+        metavar="FILE",
+        help="push this reviewed manifest JSON file instead of drafting one "
+             "via claude -p (schema as printed by a normal run; may include "
+             "the plan block)",
+    )
     args = parser.parse_args()
 
     try:
@@ -188,19 +195,23 @@ def main() -> int:
     except ValueError:
         parser.error(f"--since must be YYYY-MM-DD, got {args.since!r}")
 
-    path = find_transcript(args.session_id)
-    print(f"Transcript: {path}")
-    transcript = extract_text(path)
-    print(f"Extracted {len(transcript)} chars of conversation text.")
+    if args.manifest:
+        manifest = json.loads(Path(args.manifest).read_text())
+        print(f"Loaded manifest from {args.manifest} (no drafting).")
+    else:
+        path = find_transcript(args.session_id)
+        print(f"Transcript: {path}")
+        transcript = extract_text(path)
+        print(f"Extracted {len(transcript)} chars of conversation text.")
 
-    prompt = PROMPT_TEMPLATE.format(
-        schema=MANIFEST_SCHEMA,
-        session_id=args.session_id,
-        since=args.since,
-        transcript=transcript,
-    )
-    print("Drafting manifest via headless `claude -p` (this run is your consent)...")
-    manifest = run_claude_json(prompt)
+        prompt = PROMPT_TEMPLATE.format(
+            schema=MANIFEST_SCHEMA,
+            session_id=args.session_id,
+            since=args.since,
+            transcript=transcript,
+        )
+        print("Drafting manifest via headless `claude -p` (this run is your consent)...")
+        manifest = run_claude_json(prompt)
     manifest["source_ref"] = args.session_id  # never trust the model with the ref
     manifest, plan = split_manifest(manifest)
 

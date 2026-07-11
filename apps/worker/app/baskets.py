@@ -75,8 +75,10 @@ def _validate_manifest(manifest: dict) -> list[dict]:
         if not isinstance(manifest.get(field), str) or not manifest[field].strip():
             raise ManifestError(f"manifest.{field} is required")
     legs = manifest.get("legs")
-    if not isinstance(legs, list) or not legs:
-        raise ManifestError("manifest.legs must be a non-empty list")
+    if not isinstance(legs, list):
+        raise ManifestError("manifest.legs must be a list")
+    # An empty legs list is legal: a plan-only basket allocates nothing yet
+    # (pending structures live in basket_plan_legs and graduate later).
     for leg in legs:
         if not isinstance(leg, dict) or not leg.get("symbol_or_underlying"):
             raise ManifestError("each leg needs symbol_or_underlying")

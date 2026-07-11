@@ -19,6 +19,7 @@ from app.plans import (PlanManifestError, planned_total_usd,
 TOKEN_HEADERS = {"X-Internal-Token": settings.internal_api_token}
 
 SLUG = "pln-test-alpha"
+PLAN_ONLY_SLUG = "pln-test-planonly"
 
 VERTICAL = [
     {"occ": "PLNQ281215C00220000", "sec_type": "OPT", "ratio": 1},
@@ -124,7 +125,11 @@ def _cleanup(eng):
         conn.execute(text(
             "DELETE FROM basket_plan_legs WHERE basket_id IN "
             "(SELECT id FROM baskets WHERE slug = :s)"), {"s": SLUG})
-        conn.execute(text("DELETE FROM baskets WHERE slug = :s"), {"s": SLUG})
+        conn.execute(text("DELETE FROM baskets WHERE slug IN (:s, :p)"),
+                     {"s": SLUG, "p": PLAN_ONLY_SLUG})
+        conn.execute(text(
+            "DELETE FROM audit_log WHERE category = 'basket.created' "
+            "AND payload->>'slug' = :p"), {"p": PLAN_ONLY_SLUG})
         conn.execute(text(
             "DELETE FROM audit_log WHERE category = 'basket.plan_created' "
             "AND payload->>'slug' = :s"), {"s": SLUG})
@@ -254,3 +259,16 @@ def test_plan_view_curve_excluded_without_spot_anchor(client):
     view = client.get(f"/internal/baskets/{SLUG}/plan", headers=TOKEN_HEADERS).json()
     assert view["payoff_curve"] == []
     assert view["curve_excluded"] == ["PLNQ Dec-28 220/330"]
+
+
+def test_plan_only_basket_import_with_empty_legs(client):
+    """A basket may be created with zero allocation legs — pure pending intent
+    (the plan block carries the structures until fills graduate)."""
+    resp = client.post("/internal/baskets/import", headers=TOKEN_HEADERS, json={
+        "manifest": {"slug": "pln-test-planonly", "name": "Plan only",
+                     "thesis": "pending intent", "legs": []}})
+    assert resp.status_code == 200, resp.text
+    detail = client.get("/internal/baskets/pln-test-planonly",
+                        headers=TOKEN_HEADERS).json()
+    assert detail["positions"] == []
+    assert detail["deployed_usd"] == "0.00"
