@@ -228,3 +228,37 @@ def snapshots(days: int = Query(default=SNAPSHOT_DAYS_DEFAULT, ge=1)):
             "ORDER BY taken_on ASC"), {"days": days}).all()
     return [{"taken_on": r.taken_on.isoformat(),
              "total_value_usd": str(r.total_value_usd)} for r in rows]
+
+
+@router.get("/exposure")
+def exposure():
+    """Dollar exposure per underlying: stock market value + option market value.
+
+    Options count at their market value (premium marks, signed — short options
+    subtract), grouped under the OCC symbol's underlying so 'exposure to SLS'
+    includes SLS shares and every SLS option line.
+    """
+    from app.baskets import parse_underlying
+
+    with _get_engine().connect() as conn:
+        rows = conn.execute(text(_POSITION_ROWS_SQL)).all()
+    groups: dict[str, dict] = {}
+    for r in rows:
+        underlying = parse_underlying(r.symbol) if r.sec_type == "OPT" else r.symbol
+        g = groups.setdefault(underlying, {"stock": _ZERO, "options": _ZERO})
+        mv = _row_market_value(r)
+        g["options" if r.sec_type == "OPT" else "stock"] += mv
+    total_abs = sum((abs(g["stock"] + g["options"]) for g in groups.values()), _ZERO)
+    out = []
+    for underlying, g in groups.items():
+        net = g["stock"] + g["options"]
+        out.append({
+            "underlying": underlying,
+            "stock_value_usd": str(g["stock"].quantize(_CENT)),
+            "option_value_usd": str(g["options"].quantize(_CENT)),
+            "total_usd": str(net.quantize(_CENT)),
+            "weight_pct": str(((abs(net) / total_abs * 100).quantize(_PCT))
+                              if total_abs else _ZERO),
+        })
+    out.sort(key=lambda e: abs(Decimal(e["total_usd"])), reverse=True)
+    return out

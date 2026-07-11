@@ -9,10 +9,11 @@ export default function NavTabs({
   active,
 }: {
   role: Role;
-  active: "/" | "/capabilities";
+  active: "/" | "/capabilities" | "/exposure";
 }) {
-  const tabs: { href: "/" | "/capabilities"; label: string }[] = [
+  const tabs: { href: "/" | "/capabilities" | "/exposure"; label: string }[] = [
     { href: "/", label: "Portfolio" },
+    { href: "/exposure", label: "Exposure" },
   ];
   if (role === "owner") tabs.push({ href: "/capabilities", label: "Capabilities" });
 
