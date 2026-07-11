@@ -55,6 +55,18 @@ code shipped. See `docs/superpowers/specs/2026-07-10-broker-cockpit-design.md` f
 full design and `docs/superpowers/plans/2026-07-10-phase-0-skeleton.md` for the task
 plan. Blocked only on IBKR paper account activation (above).
 
+## plan-monitor branch (worktree) — ready for review/merge
+Basket Plan Monitor complete on branch `plan-monitor` (7 commits, plan doc
+docs/superpowers/plans/2026-07-11-basket-plan-monitor.md): plan schema +
+migration b9e2d4a71c05, plan CRUD API, quote engine + scheduler hook with
+transition-only Discord alerts, graduation with fill-quality, plan view API
+(marks + payoff curve), basket-page Plan section, conversation-import plan
+block. Worker suite 123 passed, web 54 passed. Merge notes: re-parent the
+migration if main gained one meanwhile; after merge + deploy (from the main
+checkout only — never from a worktree), run
+`python3 scripts/import_basket.py 5a6b9ddd-490e-4ae6-91c7-74db07e4140f`
+to import the 11-leg AI options plan as a monitored basket.
+
 ## Not blocked on IBKR — can build now
 - Phase 1 unified portfolio view UI (position list, allocation views, position detail
   page) against the Robinhood mirror, which needs no IBKR connectivity.
