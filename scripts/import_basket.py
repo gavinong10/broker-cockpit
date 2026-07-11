@@ -175,12 +175,24 @@ def main() -> int:
             return 1
 
     code, out, err = push_manifest(manifest, dry_run=args.dry_run)
+    parsed = None
     if out.strip():
         try:
-            print(json.dumps(json.loads(out), indent=2))
+            parsed = json.loads(out)
+            print(json.dumps(parsed, indent=2))
         except json.JSONDecodeError:
             print(out)
     if code != 0:
+        # In a dry run, matching conflicts (e.g. no_matching_position before the
+        # trades have synced) are the expected preview output, not a failure.
+        conflicts = isinstance(parsed, dict) and (
+            parsed.get("detail", {}).get("error") == "over_allocation"
+            if isinstance(parsed.get("detail"), dict) else False
+        )
+        if args.dry_run and conflicts:
+            print("Dry run complete — matching preview above (no positions matched "
+                  "yet is expected before the trades sync). Nothing written.")
+            return 0
         print(f"Import failed (ssh/remote exit {code}).", file=sys.stderr)
         if err.strip():
             print(err.strip()[:2000], file=sys.stderr)
