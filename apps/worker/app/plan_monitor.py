@@ -226,3 +226,80 @@ def monitor_plans(engine: Engine, quote_fn=None) -> dict:
             alerted += 1
 
     return {"checked": len(rows), "alerted": alerted, "statuses": statuses}
+
+
+# --- graduation: pending -> partial/held off synced positions ----------------------
+
+def _contract_position_ok(conn, contract: dict, leg_qty: Decimal) -> tuple[bool, Decimal | None]:
+    """Does any synced position cover this contract at the planned size?
+    Returns (covered, avg_cost_usd per share of the matched instrument)."""
+    if contract["sec_type"] == "OPT":
+        symbol, sec_type = contract["occ"], "OPT"
+    else:
+        symbol, sec_type = contract["symbol"], "STK"
+    row = conn.execute(text(
+        "SELECT COALESCE(SUM(p.qty), 0) AS qty, MAX(p.avg_cost_usd) AS avg_cost "
+        "FROM positions p JOIN instruments i ON i.id = p.instrument_id "
+        "WHERE i.symbol = :sym AND i.sec_type = :st"),
+        {"sym": symbol, "st": sec_type}).one()
+    needed = Decimal(contract["ratio"]) * leg_qty
+    have = Decimal(row.qty)
+    covered = have >= needed if needed > 0 else have <= needed
+    avg = Decimal(row.avg_cost) if row.avg_cost is not None else None
+    return covered, avg
+
+
+def graduate_plans(engine: Engine) -> dict:
+    """Flip pending/partial legs to partial/held when synced positions cover
+    their contracts. Never downgrades. Alerts once on the transition to held
+    with fill quality vs plan (fill cost = signed sum of position avg costs —
+    an approximation when the account holds same-contract lots from other
+    activity; flagged in the alert as 'approx' in that case)."""
+    with engine.connect() as conn:
+        rows = conn.execute(text(
+            "SELECT pl.id, pl.label, pl.structure, pl.qty, pl.planned_net_debit, "
+            "pl.status, b.slug "
+            "FROM basket_plan_legs pl JOIN baskets b ON b.id = pl.basket_id "
+            "WHERE pl.status IN ('pending', 'partial') AND b.status = 'open' "
+            "ORDER BY pl.id")).all()
+    if not rows:
+        return {"checked": 0, "graduated": 0}
+
+    graduated = 0
+    for row in rows:
+        structure = row.structure if isinstance(row.structure, list) else json.loads(row.structure)
+        covered_flags, fill_parts = [], []
+        with engine.connect() as conn:
+            for contract in structure:
+                covered, avg = _contract_position_ok(conn, contract, Decimal(row.qty))
+                covered_flags.append(covered)
+                if covered and avg is not None:
+                    fill_parts.append(Decimal(contract["ratio"]) * avg)
+        if all(covered_flags):
+            new_status = "held"
+        elif any(covered_flags):
+            new_status = "partial"
+        else:
+            continue
+        if new_status == row.status:
+            continue
+        filled = (sum(fill_parts) if new_status == "held"
+                  and len(fill_parts) == len(structure) else None)
+        with engine.begin() as conn:
+            conn.execute(text(
+                "UPDATE basket_plan_legs SET status = :st"
+                + (", filled_net_debit = :fill" if filled is not None else "")
+                + " WHERE id = :id"),
+                {"st": new_status, "id": row.id,
+                 **({"fill": filled} if filled is not None else {})})
+        if new_status == "held":
+            graduated += 1
+            planned = Decimal(row.planned_net_debit)
+            if filled is not None and planned:
+                slip = (filled / planned - 1) * 100
+                quality = f"filled {filled} vs plan {planned} ({slip:+.1f}% slippage)"
+            else:
+                quality = f"plan {planned}; fill cost unavailable"
+            alert(f"✅ Plan leg filled: {row.label}",
+                  f"Basket `{row.slug}` — {row.label}\n{quality}")
+    return {"checked": len(rows), "graduated": graduated}

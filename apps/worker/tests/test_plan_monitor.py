@@ -21,7 +21,9 @@ VERTICAL = [
     {"occ": "PLNM281215C00220000", "sec_type": "OPT", "ratio": 1},
     {"occ": "PLNM281215C00330000", "sec_type": "OPT", "ratio": -1},
 ]
-SINGLE = [{"occ": "PLNM281215C00220000", "sec_type": "OPT", "ratio": 1}]
+# distinct strike from VERTICAL's legs: graduation tests seed positions for the
+# vertical's contracts and must not accidentally cover this leg too
+SINGLE = [{"occ": "PLNM281215C00550000", "sec_type": "OPT", "ratio": 1}]
 
 
 # --- pure functions ---------------------------------------------------------------
@@ -228,3 +230,94 @@ def test_quote_fn_exception_isolated(pg_engine, monkeypatch):
     legs = _legs(pg_engine)
     assert legs["PLNM vertical"].monitor_status == "unquotable"   # error -> unquotable
     assert legs["PLNM single"].monitor_status == "in_window"      # 29 <= 30*1.05
+
+
+# --- Task 8: graduation ------------------------------------------------------------
+
+ACCOUNT = "PLNMON-TEST-RH"
+
+
+def _seed_positions(eng, contracts):
+    """contracts: list of (symbol, sec_type, qty, avg_cost)."""
+    from datetime import datetime, timezone
+    with eng.begin() as conn:
+        acct = conn.execute(text(
+            "INSERT INTO broker_accounts (broker, external_id, base_currency, cash_usd, "
+            "last_synced_at) VALUES ('robinhood', :e, 'USD', 0, :ts) RETURNING id"),
+            {"e": ACCOUNT, "ts": datetime.now(timezone.utc)}).scalar_one()
+        for symbol, sec_type, qty, avg in contracts:
+            iid = conn.execute(text(
+                "INSERT INTO instruments (symbol, sec_type, currency, multiplier) "
+                "VALUES (:s, :t, 'USD', :m) RETURNING id"),
+                {"s": symbol, "t": sec_type,
+                 "m": 100 if sec_type == "OPT" else None}).scalar_one()
+            conn.execute(text(
+                "INSERT INTO positions (broker_account_id, instrument_id, qty, avg_cost_usd) "
+                "VALUES (:a, :i, :q, :c)"), {"a": acct, "i": iid, "q": qty, "c": avg})
+
+
+def _cleanup_positions(eng):
+    with eng.begin() as conn:
+        conn.execute(text(
+            "DELETE FROM positions WHERE broker_account_id IN "
+            "(SELECT id FROM broker_accounts WHERE external_id = :e)"), {"e": ACCOUNT})
+        conn.execute(text("DELETE FROM broker_accounts WHERE external_id = :e"),
+                     {"e": ACCOUNT})
+        conn.execute(text("DELETE FROM instruments WHERE symbol LIKE 'PLNM%'"))
+
+
+@pytest.fixture
+def pg_positions(pg_engine):
+    _cleanup_positions(pg_engine)
+    yield pg_engine
+    _cleanup_positions(pg_engine)
+
+
+def test_graduation_partial_then_held_with_fill_quality(pg_positions, monkeypatch):
+    from app.plan_monitor import graduate_plans
+    eng = pg_positions
+    calls = _capture_alerts(monkeypatch)
+
+    # only the long leg synced -> partial, no alert
+    _seed_positions(eng, [("PLNM281215C00220000", "OPT", "1", "19.00")])
+    summary = graduate_plans(eng)
+    assert summary["graduated"] == 0
+    assert _legs(eng)["PLNM vertical"].monitor_status is None   # untouched by graduation
+    with eng.connect() as conn:
+        status = conn.execute(text(
+            "SELECT status FROM basket_plan_legs WHERE label = 'PLNM vertical'")).scalar_one()
+    assert status == "partial"
+    assert calls == []
+
+    # short leg arrives (qty -1) -> held, fill = 19.00 - 2.50 = 16.50, alert once
+    _cleanup_positions(eng)
+    _seed_positions(eng, [("PLNM281215C00220000", "OPT", "1", "19.00"),
+                          ("PLNM281215C00330000", "OPT", "-1", "2.50")])
+    summary = graduate_plans(eng)
+    assert summary["graduated"] == 1
+    with eng.connect() as conn:
+        row = conn.execute(text(
+            "SELECT status, filled_net_debit FROM basket_plan_legs "
+            "WHERE label = 'PLNM vertical'")).one()
+    assert row.status == "held"
+    assert Decimal(row.filled_net_debit) == Decimal("16.50")
+    fills = [t for t, _ in calls if "filled" in t.lower()]
+    assert len(fills) == 1 and "PLNM vertical" in fills[0]
+    # slippage vs plan 17.23: 16.50/17.23-1 = -4.2%
+    assert any("-4.2% slippage" in d for _, d in calls)
+
+    # idempotent: second pass does not re-alert or re-grade
+    n = len(calls)
+    summary = graduate_plans(eng)
+    assert summary["graduated"] == 0 and len(calls) == n
+
+
+def test_graduated_leg_leaves_monitor_pool(pg_positions, monkeypatch):
+    from app.plan_monitor import graduate_plans
+    eng = pg_positions
+    _capture_alerts(monkeypatch)
+    _seed_positions(eng, [("PLNM281215C00220000", "OPT", "1", "19.00"),
+                          ("PLNM281215C00330000", "OPT", "-1", "2.50")])
+    graduate_plans(eng)
+    summary = monitor_plans(eng, quote_fn=lambda s: StructureQuote(Decimal("10"), "mid", None))
+    assert summary["checked"] == 1   # only the single-call leg remains pending
