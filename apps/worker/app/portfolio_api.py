@@ -32,6 +32,17 @@ _POSITION_ROWS_SQL = (
     "JOIN instruments i ON i.id = p.instrument_id "
     "JOIN broker_accounts a ON a.id = p.broker_account_id ")
 
+# basket chips: open-basket allocations keyed by the same instrument tuple
+# that _aggregate groups on (symbol, sec_type, expiry, strike, right)
+_BASKET_CHIP_SQL = (
+    "SELECT i.symbol, i.sec_type, i.expiry, i.strike, i.\"right\", "
+    "b.slug, SUM(ba.qty) AS qty "
+    "FROM basket_allocations ba "
+    "JOIN baskets b ON b.id = ba.basket_id AND b.status = 'open' "
+    "JOIN instruments i ON i.id = ba.instrument_id "
+    "GROUP BY i.symbol, i.sec_type, i.expiry, i.strike, i.\"right\", b.slug "
+    "ORDER BY b.slug")
+
 
 def _get_engine():
     from app import main  # deferred: main imports this module at startup
@@ -104,7 +115,16 @@ def _aggregate(rows) -> list[dict]:
     return aggs
 
 
-def _serialize_position(g: dict, total_value: Decimal) -> dict:
+def _basket_chips(rows) -> dict[tuple, list[dict]]:
+    chips: dict[tuple, list[dict]] = {}
+    for row in rows:
+        key = (row.symbol, row.sec_type, row.expiry, row.strike, row.right)
+        chips.setdefault(key, []).append({"slug": row.slug, "qty": str(row.qty)})
+    return chips
+
+
+def _serialize_position(g: dict, total_value: Decimal,
+                        baskets: list[dict] | None = None) -> dict:
     weight = (g["market_value_usd"] / total_value * 100).quantize(_PCT) \
         if total_value != 0 else _ZERO
     return {
@@ -123,6 +143,7 @@ def _serialize_position(g: dict, total_value: Decimal) -> dict:
         "right": g["right"],
         "brokers": [{"broker": b, "qty": str(q)}
                     for b, q in sorted(g["broker_qty"].items())],
+        "baskets": baskets or [],   # empty = core (unallocated)
     }
 
 
@@ -134,6 +155,8 @@ def portfolio():
             "SELECT broker, external_id, cash_usd, last_synced_at "
             "FROM broker_accounts ORDER BY broker, external_id")).all()
         pos_rows = conn.execute(text(_POSITION_ROWS_SQL)).all()
+        chip_rows = conn.execute(text(_BASKET_CHIP_SQL)).all()
+    chips = _basket_chips(chip_rows)
 
     aggs = _aggregate(pos_rows)
     cash_total = sum((a.cash_usd for a in acct_rows), _ZERO)
@@ -154,7 +177,10 @@ def portfolio():
             "last_synced_at": a.last_synced_at.isoformat() if a.last_synced_at else None,
             "stale": is_stale(a.last_synced_at, now),
         } for a in acct_rows],
-        "positions": [_serialize_position(g, total) for g in aggs],
+        "positions": [_serialize_position(
+            g, total,
+            chips.get((g["symbol"], g["sec_type"], g["expiry"], g["strike"], g["right"])))
+            for g in aggs],
     }
 
 

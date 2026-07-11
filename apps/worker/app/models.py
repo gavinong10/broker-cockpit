@@ -85,6 +85,36 @@ class CashFlow(Base):
     amount_local: Mapped[Decimal | None] = mapped_column(Numeric(18, 2))
     source_ref: Mapped[str | None] = mapped_column(String(128), unique=True)  # broker txn id, idempotent ingest
 
+class Basket(Base):
+    __tablename__ = "baskets"
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    slug: Mapped[str] = mapped_column(String(64), unique=True)
+    name: Mapped[str] = mapped_column(String(128))
+    thesis: Mapped[str] = mapped_column(Text)
+    source_ref: Mapped[str | None] = mapped_column(Text)          # e.g. conversation/session id
+    horizon: Mapped[str | None] = mapped_column(Text)
+    invalidation: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(16), server_default="open")  # open | closed
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+class BasketAllocation(Base):
+    __tablename__ = "basket_allocations"
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    basket_id: Mapped[int] = mapped_column(ForeignKey("baskets.id"))
+    instrument_id: Mapped[int] = mapped_column(ForeignKey("instruments.id"))
+    qty: Mapped[Decimal] = mapped_column(Numeric(24, 8))
+    cost_basis_usd: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))  # captured at allocation time
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    __table_args__ = (UniqueConstraint("basket_id", "instrument_id"),)
+
+class BasketSnapshot(Base):
+    __tablename__ = "basket_snapshots"
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    basket_id: Mapped[int] = mapped_column(ForeignKey("baskets.id"))
+    taken_on: Mapped[date] = mapped_column(Date)
+    value_usd: Mapped[Decimal] = mapped_column(Numeric(18, 2))
+    __table_args__ = (UniqueConstraint("basket_id", "taken_on"),)
+
 class AuditLog(Base):
     __tablename__ = "audit_log"
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)

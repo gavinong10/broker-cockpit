@@ -13,6 +13,7 @@ from decimal import Decimal
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
+from app.baskets import record_basket_snapshots
 from app.heartbeat import seconds_until_next
 
 log = logging.getLogger(__name__)
@@ -80,6 +81,8 @@ def record_snapshot(engine: Engine) -> dict:
                 "total_value_usd": str(snap["total_value_usd"]),
                 "accounts": len(snap["per_account"]),
             })})
+    # per-open-basket value rows, same taken_on idempotency as the portfolio row
+    record_basket_snapshots(engine, snap["taken_on"])
     return snap
 
 
