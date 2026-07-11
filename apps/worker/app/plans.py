@@ -214,27 +214,62 @@ def _s(value):
     return None if value is None else str(value)
 
 
+_MARKS_PER_LEG = 40
+_CURVE_MOVES = [Decimal(m) / 100 for m in range(-50, 125, 5)]   # -50% .. +120%
+
+
 def list_plan_legs(engine: Engine, slug: str) -> dict:
+    """Full plan view: legs + recent mark history + basket payoff curve.
+
+    The payoff curve is expiry-intrinsic P&L vs a uniform underlying move,
+    anchored on each leg's most recent marked spot. Legs whose payoff can't be
+    modeled (no spot reference yet, or a structure with no closed form) are
+    listed in curve_excluded rather than silently dropped.
+    """
     with engine.connect() as conn:
         basket_id = conn.execute(
             text("SELECT id FROM baskets WHERE slug = :s"), {"s": slug}).scalar_one_or_none()
         if basket_id is None:
             raise UnknownBasket(f"unknown basket: {slug!r}")
         rows = conn.execute(text(
-            "SELECT label, structure, qty, planned_net_debit, tolerance_pct, "
+            "SELECT id, label, structure, qty, planned_net_debit, tolerance_pct, "
             "breakeven_underlying, max_value_usd, thesis_note, status, "
             "monitor_status, last_quote_net, last_quoted_at, filled_net_debit, "
             "created_at "
             "FROM basket_plan_legs WHERE basket_id = :b ORDER BY id"),
             {"b": basket_id}).all()
-    legs = []
+        marks_by_leg: dict[int, list] = {}
+        if rows:
+            mark_rows = conn.execute(text(
+                "SELECT plan_leg_id, taken_at, net_cost, underlying_spot, quote_basis "
+                "FROM (SELECT m.*, ROW_NUMBER() OVER (PARTITION BY m.plan_leg_id "
+                "                                     ORDER BY m.taken_at DESC) AS rn "
+                "      FROM basket_plan_marks m "
+                "      WHERE m.plan_leg_id = ANY(:ids)) ranked "
+                "WHERE rn <= :n ORDER BY plan_leg_id, taken_at"),
+                {"ids": [r.id for r in rows], "n": _MARKS_PER_LEG}).all()
+            for m in mark_rows:
+                marks_by_leg.setdefault(m.plan_leg_id, []).append(m)
+
+    legs, curve_inputs, curve_excluded = [], [], []
+    planned_total = Decimal("0")
     for r in rows:
         structure = r.structure if isinstance(r.structure, list) else json.loads(r.structure)
+        leg_marks = marks_by_leg.get(r.id, [])
+        latest_spot = next((Decimal(m.underlying_spot) for m in reversed(leg_marks)
+                            if m.underlying_spot is not None), None)
+        planned = Decimal(r.planned_net_debit)
+        mult = structure_multiplier(structure)
+        planned_total += Decimal(r.qty) * planned * mult
+        delta_pct = None
+        if r.last_quote_net is not None and planned:
+            delta_pct = str(((Decimal(r.last_quote_net) / planned - 1) * 100
+                             ).quantize(Decimal("0.1")))
         legs.append({
             "label": r.label,
             "structure": structure,
             "qty": str(r.qty),
-            "planned_net_debit": str(r.planned_net_debit),
+            "planned_net_debit": str(planned),
             "tolerance_pct": str(r.tolerance_pct),
             "breakeven_underlying": _s(r.breakeven_underlying),
             "max_value_usd": _s(r.max_value_usd),
@@ -242,8 +277,62 @@ def list_plan_legs(engine: Engine, slug: str) -> dict:
             "status": r.status,
             "monitor_status": r.monitor_status,
             "last_quote_net": _s(r.last_quote_net),
+            "last_quote_delta_pct": delta_pct,
             "last_quoted_at": r.last_quoted_at.isoformat() if r.last_quoted_at else None,
             "filled_net_debit": _s(r.filled_net_debit),
             "created_at": r.created_at.isoformat(),
+            "marks": [{"taken_at": m.taken_at.isoformat(),
+                       "net_cost": _s(m.net_cost),
+                       "underlying_spot": _s(m.underlying_spot),
+                       "quote_basis": m.quote_basis} for m in leg_marks],
         })
-    return {"slug": slug, "legs": legs}
+        payoff = _leg_payoff_fn(structure, latest_spot)
+        if payoff is None:
+            curve_excluded.append(r.label)
+        else:
+            curve_inputs.append((Decimal(r.qty), mult, planned, payoff))
+
+    curve = []
+    if curve_inputs:
+        for move in _CURVE_MOVES:
+            pnl = Decimal("0")
+            for qty, mult, planned, payoff in curve_inputs:
+                pnl += qty * mult * (payoff(move) - planned)
+            curve.append({"move_pct": str((move * 100).quantize(Decimal("1"))),
+                          "pnl_usd": str(pnl.quantize(Decimal("0.01")))})
+
+    return {"slug": slug, "legs": legs,
+            "planned_total_usd": str(planned_total.quantize(Decimal("0.01"))),
+            "payoff_curve": curve, "curve_excluded": curve_excluded}
+
+
+def _leg_payoff_fn(structure: list[dict], spot: Decimal | None):
+    """Expiry-intrinsic value per share as f(uniform move) for modelable
+    structures: all-OPT call structures (verticals, singles) and pure stock.
+    Returns None when no spot anchor exists or the shape has no closed form."""
+    if spot is None or spot <= 0:
+        return None
+    if all(c.get("sec_type") == "STK" for c in structure):
+        net_ratio = sum(c["ratio"] for c in structure)
+        return lambda m: spot * (1 + m) * net_ratio
+    if not all(c.get("sec_type") == "OPT" for c in structure):
+        return None
+    try:
+        parsed = []
+        for c in structure:
+            from app.plan_monitor import parse_occ  # local import: avoid cycle at module load
+            _, _, right, strike = parse_occ(c["occ"])
+            if right != "C":
+                return None                          # puts: not modeled yet
+            parsed.append((strike, Decimal(c["ratio"])))
+    except (ValueError, KeyError):
+        return None
+
+    def value(move: Decimal) -> Decimal:
+        s_t = spot * (1 + move)
+        total = Decimal("0")
+        for strike, ratio in parsed:
+            total += ratio * max(s_t - strike, Decimal("0"))
+        return total
+
+    return value

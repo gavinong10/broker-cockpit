@@ -207,3 +207,50 @@ def test_audit_row_written(client, pg_engine):
             "AND payload->>'slug' = :s ORDER BY id DESC LIMIT 1"), {"s": SLUG}).scalar_one()
     assert payload["legs"] == 1
     assert payload["planned_total_usd"] == "3446.00"
+
+
+# --- Task 5: plan view (marks + payoff curve) --------------------------------------
+
+def test_plan_view_marks_and_curve(client, pg_engine):
+    client.post(f"/internal/baskets/{SLUG}/plan", headers=TOKEN_HEADERS,
+                json={"manifest": {"legs": [_leg()]}})
+    # simulate two monitor cycles' marks with a spot anchor at 220
+    with pg_engine.begin() as conn:
+        leg_id = conn.execute(text(
+            "SELECT pl.id FROM basket_plan_legs pl JOIN baskets b ON b.id = pl.basket_id "
+            "WHERE b.slug = :s"), {"s": SLUG}).scalar_one()
+        for net, spot in (("18.10", "215.0"), ("16.90", "220.0")):
+            conn.execute(text(
+                "INSERT INTO basket_plan_marks (plan_leg_id, net_cost, underlying_spot, "
+                "quote_basis) VALUES (:l, :n, :s, 'mid')"), {"l": leg_id, "n": net, "s": spot})
+        conn.execute(text(
+            "UPDATE basket_plan_legs SET last_quote_net = '16.90', "
+            "monitor_status = 'in_window' WHERE id = :l"), {"l": leg_id})
+
+    view = client.get(f"/internal/baskets/{SLUG}/plan", headers=TOKEN_HEADERS).json()
+    leg = view["legs"][0]
+    assert len(leg["marks"]) == 2
+    assert Decimal(leg["marks"][-1]["underlying_spot"]) == Decimal("220")
+    # delta: 16.90 / 17.23 - 1 = -1.9%
+    assert leg["last_quote_delta_pct"] == "-1.9"
+    assert view["planned_total_usd"] == "3446.00"      # 2 x 17.23 x 100
+    assert view["curve_excluded"] == []
+
+    curve = {p["move_pct"]: Decimal(p["pnl_usd"]) for p in view["payoff_curve"]}
+    # spot anchor 220, strikes 220/330 (width 110), qty 2, planned 17.23:
+    # at -50%: intrinsic 0        -> pnl = -3446.00
+    # at 0%:   intrinsic 0 (ATM)  -> pnl = -3446.00
+    # at +50%: S=330, intrinsic (330-220)=110 capped -> 2*100*(110-17.23) = 18554.00
+    # at +100%: capped at width   -> same 18554.00
+    assert curve["-50"] == Decimal("-3446.00")
+    assert curve["0"] == Decimal("-3446.00")
+    assert curve["50"] == Decimal("18554.00")
+    assert curve["100"] == Decimal("18554.00")
+
+
+def test_plan_view_curve_excluded_without_spot_anchor(client):
+    client.post(f"/internal/baskets/{SLUG}/plan", headers=TOKEN_HEADERS,
+                json={"manifest": {"legs": [_leg()]}})
+    view = client.get(f"/internal/baskets/{SLUG}/plan", headers=TOKEN_HEADERS).json()
+    assert view["payoff_curve"] == []
+    assert view["curve_excluded"] == ["PLNQ Dec-28 220/330"]
