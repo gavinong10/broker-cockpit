@@ -6,4 +6,5 @@ RUN uv sync --no-dev --frozen || uv sync --no-dev
 COPY app ./app
 COPY alembic.ini* ./
 COPY migrations ./migrations
+COPY scripts ./scripts
 CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
