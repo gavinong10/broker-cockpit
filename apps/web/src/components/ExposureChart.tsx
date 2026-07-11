@@ -2,6 +2,7 @@ import Link from "next/link";
 import { display, displayQty, pct } from "@/lib/format";
 import type { ExposureConstituent, ExposureRow } from "@/lib/exposure";
 import { positionLabel } from "@/lib/portfolio";
+import TagChips from "@/components/TagChips";
 
 // Validated categorical pair for the dark surface (dataviz palette slots 1-2,
 // dark steps; CVD ΔE 69.8, contrast ≥3:1): stock=blue, options=aqua.
@@ -21,15 +22,16 @@ function Bar({ stockPct, optPct }: { stockPct: number; optPct: number }) {
   );
 }
 
-function RowSummary({ r, masked, expandable }: { r: ExposureRow; masked: boolean; expandable?: boolean }) {
+function RowSummary({ r, masked, expandable, activeTag }: { r: ExposureRow; masked: boolean; expandable?: boolean; activeTag?: string | null }) {
   return (
     <div className="flex items-baseline justify-between text-[13px]">
-      <span className="text-ink tabular-nums">
+      <span className="flex min-w-0 items-baseline gap-2 text-ink tabular-nums">
         {r.underlying}
+        <TagChips tags={r.tags} activeTag={activeTag} />
         {expandable && (
           <>
-            <span className="ml-1.5 text-[11px] text-ink-3 group-open:hidden">▸</span>
-            <span className="ml-1.5 hidden text-[11px] text-ink-3 group-open:inline">▾</span>
+            <span className="text-[11px] text-ink-3 group-open:hidden">▸</span>
+            <span className="hidden text-[11px] text-ink-3 group-open:inline">▾</span>
           </>
         )}
       </span>
@@ -84,9 +86,11 @@ function Constituent({ c, masked }: { c: ExposureConstituent; masked: boolean })
 export default function ExposureChart({
   rows,
   masked,
+  activeTag,
 }: {
   rows: ExposureRow[];
   masked: boolean;
+  activeTag?: string | null;
 }) {
   const maxTotal = Math.max(
     ...rows.map((r) => Math.max(0, Number(r.stock_value_usd)) + Math.max(0, Number(r.option_value_usd))),
@@ -120,7 +124,7 @@ export default function ExposureChart({
           if (!expandable) {
             return (
               <li key={r.underlying} className="flex flex-col gap-1">
-                <RowSummary r={r} masked={masked} />
+                <RowSummary r={r} masked={masked} activeTag={activeTag} />
                 <Bar {...geometry(r)} />
               </li>
             );
@@ -129,7 +133,7 @@ export default function ExposureChart({
             <li key={r.underlying}>
               <details className="group">
                 <summary className="-mx-1 flex cursor-pointer list-none flex-col gap-1 rounded-md px-1 py-0.5 hover:bg-hover [&::-webkit-details-marker]:hidden">
-                  <RowSummary r={r} masked={masked} expandable />
+                  <RowSummary r={r} masked={masked} expandable activeTag={activeTag} />
                   <Bar {...geometry(r)} />
                 </summary>
                 {r.positions && r.positions.length > 0 && (
@@ -143,7 +147,7 @@ export default function ExposureChart({
                   <ul className="ml-1 mt-1 flex flex-col gap-2 border-l border-hairline pl-4">
                     {r.others.map((o) => (
                       <li key={o.underlying} className="flex flex-col gap-1">
-                        <RowSummary r={o} masked={masked} />
+                        <RowSummary r={o} masked={masked} activeTag={activeTag} />
                         <Bar {...geometry(o)} />
                       </li>
                     ))}
