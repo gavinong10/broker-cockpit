@@ -33,12 +33,21 @@ class ActorReq(BaseModel):
     actor: str
 
 
+_LIST_SQL = text(
+    "SELECT slug, prompt, model, status, diff_stat, risky_paths, merge_sha, "
+    "created_at, updated_at FROM features ORDER BY id DESC")
+
+
 @router.get("")
 def list_features():
-    with _engine().connect() as conn:
-        rows = conn.execute(text(
-            "SELECT slug, prompt, model, status, diff_stat, risky_paths, merge_sha, "
-            "created_at, updated_at FROM features ORDER BY id DESC")).mappings().all()
+    engine = _engine()
+    with engine.connect() as conn:
+        rows = conn.execute(_LIST_SQL).mappings().all()
+    # Reconcile non-terminal rows with the host: a build whose starting request
+    # died keeps running host-side; adopt its real outcome on every poll.
+    if features.reconcile_features(engine, [dict(r) for r in rows]):
+        with engine.connect() as conn:
+            rows = conn.execute(_LIST_SQL).mappings().all()
     return [{**dict(r),
              "created_at": r["created_at"].isoformat(),
              "updated_at": r["updated_at"].isoformat()} for r in rows]
@@ -70,23 +79,23 @@ async def create(req: CreateReq):
     prompt = req.prompt.strip()
     if len(prompt) < 20:
         return JSONResponse(status_code=400, content={"error": "prompt too short"})
+    busy = features.building_slug()
+    if busy:
+        return JSONResponse(status_code=409, content={
+            "error": f"a build for '{busy}' is already in progress — wait for it to finish"})
     try:
         created = await asyncio.to_thread(
             features.create_feature, _engine(), prompt, req.model, req.actor)
     except features.RunnerError as exc:
         return JSONResponse(status_code=409, content={"error": str(exc)})
-    # Fire the long build in the background; UI polls status.
-    engine = _engine()
-
-    async def _bg():
-        try:
-            await asyncio.to_thread(
-                features.build_feature_blocking, engine, created["slug"], created["model"])
-        except Exception:
-            pass  # state persisted by build_feature_blocking
-
-    asyncio.create_task(_bg())
-    return created
+    # Async start: spawn the multi-minute build in a daemon thread and return
+    # 202 immediately. The UI polls the list endpoint, which reconciles the
+    # row from the host — so even if this process dies, the outcome is adopted.
+    try:
+        features.start_build(_engine(), created["slug"], created["model"], req.actor)
+    except features.BuildInProgress as exc:  # lost the race to another request
+        return JSONResponse(status_code=409, content={"error": str(exc)})
+    return JSONResponse(status_code=202, content={**created, "status": "building"})
 
 
 @router.get("/{slug}")

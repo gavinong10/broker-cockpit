@@ -26,8 +26,22 @@ DEFAULT_MODEL = "claude-fable-5"
 
 _build_lock = threading.Lock()  # single-flight: one build at a time
 
+# Async build registry: slug -> daemon thread running build_feature_blocking.
+# The HTTP request that starts a build returns immediately; the UI polls the
+# feature list, which reconciles non-terminal rows from the host (see
+# reconcile_features). Module-level on purpose: one worker process, one registry.
+_build_threads: dict[str, threading.Thread] = {}
+_threads_lock = threading.Lock()
+
+# Statuses that mean "the host may know more than the DB row does".
+NON_TERMINAL = frozenset({"created", "building"})
+
 
 class RunnerError(Exception):
+    pass
+
+
+class BuildInProgress(RunnerError):
     pass
 
 
@@ -118,20 +132,79 @@ def create_feature(engine: Engine, prompt: str, requested_model: str | None, act
 
 
 def build_feature_blocking(engine: Engine, slug: str, model: str) -> str:
-    """Long-running; call via asyncio.to_thread. Single-flight."""
+    """Long-running (multi-minute). Never call from a request path — use
+    start_build, which runs this in a daemon thread. Persists its own outcome:
+    'building' on entry, the host's authoritative status (via sync_feature) on
+    completion, 'failed' + error report if the runner call itself errors."""
     if not _build_lock.acquire(blocking=False):
-        raise RunnerError("another feature build is in progress")
+        raise BuildInProgress("another feature build is in progress")
     try:
         _set(engine, slug, status="building")
         out = _ssh(["build", slug, model], timeout=2000).strip().splitlines()
         status = out[-1] if out else "failed"
-        sync_feature(engine, slug)
+        try:
+            sync_feature(engine, slug)
+        except RunnerError:
+            # Build finished (we have its stdout status); don't mark it failed
+            # just because the follow-up status fetch hiccuped.
+            _set(engine, slug, status=status)
         return status
     except RunnerError as exc:
         _set(engine, slug, status="failed", report=str(exc))
         raise
     finally:
         _build_lock.release()
+
+
+def building_slug() -> str | None:
+    """Slug of the build currently running in this process, if any.
+    Prunes finished threads from the registry as a side effect."""
+    with _threads_lock:
+        for slug, thread in list(_build_threads.items()):
+            if thread.is_alive():
+                return slug
+            del _build_threads[slug]
+    return None
+
+
+def start_build(engine: Engine, slug: str, model: str, actor: str) -> None:
+    """Spawn build_feature_blocking in a daemon thread and return immediately.
+    Raises BuildInProgress if any build thread is still alive (single-flight)."""
+    with _threads_lock:
+        for s, thread in list(_build_threads.items()):
+            if thread.is_alive():
+                raise BuildInProgress(f"a build for '{s}' is already in progress — wait for it to finish")
+            del _build_threads[s]
+        thread = threading.Thread(
+            target=_run_build_thread, args=(engine, slug, model, actor),
+            name=f"feature-build-{slug}", daemon=True)
+        _build_threads[slug] = thread
+        thread.start()
+
+
+def _run_build_thread(engine: Engine, slug: str, model: str, actor: str) -> None:
+    try:
+        status = build_feature_blocking(engine, slug, model)
+        _audit(engine, actor, "feature.build_finished", {"slug": slug, "status": status})
+    except Exception as exc:  # outcome already persisted by build_feature_blocking
+        _audit(engine, actor, "feature.build_failed", {"slug": slug, "error": str(exc)[:300]})
+
+
+def reconcile_features(engine: Engine, rows: list[dict]) -> bool:
+    """Adopt host-side outcomes for rows stuck in a non-terminal state — e.g. a
+    build whose starting request died but whose host process ran to completion.
+    Only non-terminal rows cost an SSH round-trip. Returns True if any row was
+    refreshed (caller should re-read the DB)."""
+    refreshed = False
+    for row in rows:
+        if row["status"] not in NON_TERMINAL:
+            continue
+        try:
+            sync_feature(engine, row["slug"])
+            refreshed = True
+        except RunnerError:
+            pass  # host unreachable: keep the DB's view, try again next poll
+    return refreshed
 
 
 def sync_feature(engine: Engine, slug: str) -> dict:

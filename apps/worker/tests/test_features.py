@@ -118,3 +118,130 @@ def test_pause_endpoint_requires_internal_token(monkeypatch):
     monkeypatch.setattr(features, "_ssh", lambda args, **kw: "OK\n")
     r = _client().post("/internal/features/runner/pause", json={"actor": "owner@x"})
     assert r.status_code == 401
+
+
+# --- async build start: 202 immediately, single-flight 409 ------------------
+
+
+STATUS_BUILT = ("STATUS built\nDIFFSTAT 1 file changed\n"
+                "RISKY_BEGIN\nRISKY_END\nREPORT_BEGIN\ndone\nREPORT_END\n")
+
+
+def test_build_endpoint_returns_immediately_and_refuses_concurrent(monkeypatch):
+    import threading
+    import time
+
+    from app import features_api
+
+    features._build_threads.clear()
+    release = threading.Event()
+    build_started = threading.Event()
+
+    def fake_ssh(args, **kw):
+        if args[0] == "build":
+            build_started.set()
+            assert release.wait(timeout=10), "test never released the build"
+            return "built\n"
+        if args[0] == "status":
+            return STATUS_BUILT
+        return "OK\n"
+
+    monkeypatch.setattr(features, "_ssh", fake_ssh)
+    monkeypatch.setattr(features, "_set", lambda *a, **kw: None)
+    monkeypatch.setattr(features, "_audit", lambda *a, **kw: None)
+    monkeypatch.setattr(features, "create_feature",
+                        lambda eng, p, m, a: {"slug": "my-widget", "model": "claude-fable-5",
+                                              "status": "created"})
+    monkeypatch.setattr(features_api, "_engine", lambda: None)
+
+    c = _client()
+    t0 = time.monotonic()
+    r = c.post("/internal/features", headers=TOKEN,
+               json={"prompt": "add a widget to the dashboard please", "actor": "o@x"})
+    elapsed = time.monotonic() - t0
+    assert r.status_code == 202
+    assert r.json()["status"] == "building"
+    assert elapsed < 2, "build start must not wait for the build"
+    assert build_started.wait(timeout=5)
+
+    # Second build while the first thread is alive: refused, no create attempted.
+    def no_create(*a, **kw):
+        raise AssertionError("create_feature must not run while a build is in flight")
+    monkeypatch.setattr(features, "create_feature", no_create)
+    r2 = c.post("/internal/features", headers=TOKEN,
+                json={"prompt": "add another widget somewhere else please", "actor": "o@x"})
+    assert r2.status_code == 409
+    assert "already in progress" in r2.json()["error"]
+
+    release.set()
+    for t in list(features._build_threads.values()):
+        t.join(timeout=10)
+    assert features.building_slug() is None
+
+
+def test_start_build_registry_single_flight(monkeypatch):
+    import threading
+
+    features._build_threads.clear()
+    release = threading.Event()
+    monkeypatch.setattr(features, "_set", lambda *a, **kw: None)
+    monkeypatch.setattr(features, "_audit", lambda *a, **kw: None)
+    monkeypatch.setattr(features, "_ssh",
+                        lambda args, **kw: (release.wait(10) and "") or
+                        (STATUS_BUILT if args[0] == "status" else "built\n"))
+
+    features.start_build(None, "slug-a", "claude-fable-5", "o@x")
+    assert features.building_slug() == "slug-a"
+    try:
+        features.start_build(None, "slug-b", "claude-fable-5", "o@x")
+        raise AssertionError("expected BuildInProgress")
+    except features.BuildInProgress:
+        pass
+    release.set()
+    features._build_threads["slug-a"].join(timeout=10)
+    assert features.building_slug() is None
+
+
+# --- reconciliation: adopt host outcomes for non-terminal rows only ---------
+
+
+def test_reconcile_refreshes_only_nonterminal_rows(monkeypatch):
+    ssh_calls, set_calls = [], []
+
+    def fake_ssh(args, **kw):
+        ssh_calls.append(args)
+        return STATUS_BUILT
+
+    monkeypatch.setattr(features, "_ssh", fake_ssh)
+    monkeypatch.setattr(features, "_set",
+                        lambda eng, slug, **cols: set_calls.append((slug, cols)))
+    rows = [
+        {"slug": "running", "status": "building"},
+        {"slug": "done", "status": "built"},
+        {"slug": "dead", "status": "failed"},
+        {"slug": "fresh", "status": "created"},
+        {"slug": "live", "status": "accepted"},
+        {"slug": "gone", "status": "discarded"},
+    ]
+    assert features.reconcile_features(None, rows) is True
+    # Only the two non-terminal rows cost an SSH round-trip.
+    assert ssh_calls == [["status", "running"], ["status", "fresh"]]
+    # And both adopt the host's authoritative status.
+    assert [(s, c["status"]) for s, c in set_calls] == [("running", "built"), ("fresh", "built")]
+
+
+def test_reconcile_all_terminal_makes_no_ssh_calls(monkeypatch):
+    def boom(args, **kw):
+        raise AssertionError("terminal rows must not be re-fetched")
+    monkeypatch.setattr(features, "_ssh", boom)
+    rows = [{"slug": "a", "status": "built"}, {"slug": "b", "status": "reverted"},
+            {"slug": "c", "status": "failed_blocked_paths"}, {"slug": "d", "status": "killed"}]
+    assert features.reconcile_features(None, rows) is False
+
+
+def test_reconcile_survives_unreachable_host(monkeypatch):
+    def down(args, **kw):
+        raise features.RunnerError("host unreachable")
+    monkeypatch.setattr(features, "_ssh", down)
+    # No refresh, no exception: the DB's view stands until the next poll.
+    assert features.reconcile_features(None, [{"slug": "a", "status": "building"}]) is False

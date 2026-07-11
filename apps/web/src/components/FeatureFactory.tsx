@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState, useTransition } from "react";
+import { useActionState, useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createFeature, factoryPause, featureAction, type ActionResult } from "@/app/actions/features";
 
@@ -52,6 +52,16 @@ export default function FeatureFactory({
   });
   const [toggling, startToggle] = useTransition();
   const [toggleMsg, setToggleMsg] = useState("");
+
+  // While a build is in flight, poll: the server refreshes non-terminal rows
+  // from the host runner on every list fetch, so this surfaces built/failed
+  // without manual refreshes (builds start async and take minutes).
+  const hasActive = initialFeatures.some((f) => ACTIVE.has(f.status));
+  useEffect(() => {
+    if (!hasActive) return;
+    const id = setInterval(() => router.refresh(), 10_000);
+    return () => clearInterval(id);
+  }, [hasActive, router]);
 
   function togglePause() {
     startToggle(async () => {

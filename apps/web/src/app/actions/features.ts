@@ -26,17 +26,22 @@ export async function createFeature(
   const model = String(formData.get("model") ?? "").trim() || undefined;
   if (prompt.length < 20) return { ok: false, message: "Describe the feature in a bit more detail." };
   try {
+    // The worker answers 202 immediately (async build start) — this call is
+    // create + spawn only; the build itself is polled via the feature list.
     const { status, body } = await workerPost(
       "/internal/features",
       { prompt, model, actor: owner.email },
       { timeoutMs: 60_000 },
     );
-    if (status !== 200) {
+    if (status !== 200 && status !== 202) {
       const b = body as { error?: string };
       return { ok: false, message: b?.error ?? `Worker returned ${status}` };
     }
     const b = body as { slug: string };
-    return { ok: true, message: `Building "${b.slug}"… this can take several minutes.` };
+    return {
+      ok: true,
+      message: `Build "${b.slug}" started — this takes several minutes; the list below updates as it runs.`,
+    };
   } catch {
     return { ok: false, message: "Could not reach the build runner." };
   }
@@ -80,6 +85,8 @@ export async function featureAction(
     const b = body as { status?: string };
     return { ok: true, message: b?.status ?? "done" };
   } catch {
-    return { ok: false, message: "Runner call failed or timed out." };
+    // Builds run host-side regardless of this call's fate — never claim a
+    // timeout killed anything; the list poll shows the authoritative status.
+    return { ok: false, message: "Runner call failed — refresh to see the current status." };
   }
 }
