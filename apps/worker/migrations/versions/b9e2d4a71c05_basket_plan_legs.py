@@ -1,7 +1,7 @@
 """basket plan legs + marks (plan monitor, task 1)
 
 Revision ID: b9e2d4a71c05
-Revises: 3f8ad2283ded
+Revises: f1e2d3c4b5a6
 Create Date: 2026-07-11
 
 Plan doc: docs/superpowers/plans/2026-07-11-basket-plan-monitor.md
@@ -14,7 +14,7 @@ from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision: str = "b9e2d4a71c05"
-down_revision: Union[str, Sequence[str], None] = "3f8ad2283ded"
+down_revision: Union[str, Sequence[str], None] = "f1e2d3c4b5a6"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
