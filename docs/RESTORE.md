@@ -74,7 +74,7 @@ gcloud iam service-accounts keys create secrets/gcs-backup-key.json \
    ```bash
    set -a; . ./.env; set +a
    docker compose build backup
-   REMOTE=":gcs,service_account_file=${GCS_KEY_FILE}:${GCS_BUCKET}"
+   REMOTE=":gcs,service_account_file=${GCS_KEY_FILE},bucket_policy_only=true:${GCS_BUCKET}"
    LATEST=$(docker compose run --rm backup rclone lsf "${REMOTE}/" | sort | tail -1)
    docker compose run --rm backup rclone cat "${REMOTE}/${LATEST}" > /tmp/restore.sql.gz
    ```

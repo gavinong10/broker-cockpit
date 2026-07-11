@@ -4,7 +4,7 @@ set -eu
 # and works with either the compose plugin or standalone docker-compose.
 set -a; . ./.env; set +a
 if docker compose version >/dev/null 2>&1; then DC="docker compose"; else DC="docker-compose"; fi
-REMOTE=":gcs,service_account_file=${GCS_KEY_FILE}:${GCS_BUCKET}"
+REMOTE=":gcs,service_account_file=${GCS_KEY_FILE},bucket_policy_only=true:${GCS_BUCKET}"
 LATEST=$($DC run --rm backup rclone lsf "${REMOTE}/" | sort | tail -1)
 $DC run --rm backup rclone cat "${REMOTE}/${LATEST}" > /tmp/drill.sql.gz
 # DROP/CREATE DATABASE must be separate psql -c calls: a multi-statement -c
