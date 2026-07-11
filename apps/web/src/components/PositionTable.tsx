@@ -1,11 +1,11 @@
 // Server component: positions table in API order (market value desc).
 // Each row is a <details> element (stays server-side) whose summary is the
 // data row; expanding reveals the per-broker quantity breakdown. The
-// symbol/label cell links to the position detail page. Dollar cells respect
-// masking; qty stays real (not a dollar amount).
+// symbol/label cell links to the position detail page. Dollar cells AND qty
+// cells respect masking (qty x public per-share price reconstructs dollars).
 
 import Link from "next/link";
-import { display, usd } from "@/lib/format";
+import { display, displayQty, usd } from "@/lib/format";
 import { positionLabel, type PortfolioPosition } from "@/lib/portfolio";
 
 const GRID =
@@ -80,7 +80,7 @@ export default function PositionTable({
                     )}
                   </span>
                   <span className="text-right text-sm tabular-nums text-zinc-950 dark:text-zinc-50">
-                    {p.qty}
+                    {displayQty(p.qty, masked)}
                   </span>
                   <span className="text-right text-sm tabular-nums text-zinc-950 dark:text-zinc-50">
                     {p.last_price_usd === null ? "—" : display(p.last_price_usd, masked)}
@@ -105,7 +105,7 @@ export default function PositionTable({
                       key={b.broker}
                       className="text-xs text-zinc-500 dark:text-zinc-400"
                     >
-                      {b.broker}: {b.qty}
+                      {b.broker}: {displayQty(b.qty, masked)}
                     </p>
                   ))}
                 </div>

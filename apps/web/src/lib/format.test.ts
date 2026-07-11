@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { usd, pct, display, optionLabel } from "./format";
+import { usd, pct, display, displayQty, qty, optionLabel } from "./format";
 
 describe("usd", () => {
   it("groups thousands and shows cents", () => {
@@ -33,6 +33,31 @@ describe("display", () => {
   it("masks dollar values with bullets", () => {
     expect(display("1234.5", true)).toBe("•••");
     expect(display("-99", true)).toBe("•••");
+  });
+});
+
+describe("qty", () => {
+  it("formats whole quantities with grouping and no decimals", () => {
+    expect(qty("10")).toBe("10");
+    expect(qty("1234")).toBe("1,234");
+  });
+  it("keeps fractional shares without padding zeros", () => {
+    expect(qty("10.500000")).toBe("10.5");
+    expect(qty("0.123456")).toBe("0.123456");
+  });
+  it("keeps the sign on short positions", () => {
+    expect(qty("-2")).toBe("-2");
+  });
+});
+
+describe("displayQty", () => {
+  it("returns the formatted quantity when not masked", () => {
+    expect(displayQty("1234.5", false)).toBe("1,234.5");
+    expect(displayQty("3", false)).toBe("3");
+  });
+  it("masks quantities with bullets", () => {
+    expect(displayQty("1234.5", true)).toBe("•••");
+    expect(displayQty("0", true)).toBe("•••");
   });
 });
 

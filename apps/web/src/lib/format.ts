@@ -1,5 +1,6 @@
 // Formatting + masking helpers. Masking semantics live here (and only here):
-// `display(value, masked)` hides dollar amounts; percents are always real.
+// `display(value, masked)` hides dollar amounts and `displayQty(value, masked)`
+// hides share counts (qty x public price = dollars); percents are always real.
 
 const usdFmt = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -23,6 +24,23 @@ export const MASK = "•••";
 /** Dollar display: real via usd() unless masked, then bullets. */
 export function display(value: string | number, masked: boolean): string {
   return masked ? MASK : usd(value);
+}
+
+const qtyFmt = new Intl.NumberFormat("en-US", {
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 8, // RH fractional shares go to 6 dp; keep headroom
+});
+
+/** "1,234.5" — grouping, fractional part kept, no padded zeros. */
+export function qty(value: string | number): string {
+  return qtyFmt.format(Number(value));
+}
+
+/** Quantity display: real via qty() unless masked, then bullets. Share
+ * counts let a viewer reconstruct absolute dollar values from public
+ * per-share prices, so masked users never see them. */
+export function displayQty(value: string | number, masked: boolean): string {
+  return masked ? MASK : qty(value);
 }
 
 /** Trailing OCC tail: YYMMDD + C/P + strike*1000 zero-padded to 8. */

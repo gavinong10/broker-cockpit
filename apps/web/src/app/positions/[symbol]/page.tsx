@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { auth } from "@/auth";
-import { display, usd } from "@/lib/format";
+import { display, displayQty, usd } from "@/lib/format";
 import { positionLabel, type PositionDetail } from "@/lib/portfolio";
 import { isMasked } from "@/lib/roles";
 import { workerFetchRaw } from "@/lib/worker";
@@ -83,7 +83,7 @@ export default async function PositionPage({
         aria-label="Aggregate position stats"
         className="grid grid-cols-2 gap-4 sm:grid-cols-4"
       >
-        <Stat label="Quantity" value={detail.qty} />
+        <Stat label="Quantity" value={displayQty(detail.qty, masked)} />
         <Stat
           label="Avg cost"
           value={detail.avg_cost_usd === null ? "—" : display(detail.avg_cost_usd, masked)}
@@ -138,7 +138,7 @@ export default async function PositionPage({
                   {a.external_id}
                 </span>
                 <span className="text-right text-sm tabular-nums text-zinc-950 dark:text-zinc-50">
-                  {a.qty}
+                  {displayQty(a.qty, masked)}
                 </span>
                 <span className="text-right text-sm tabular-nums text-zinc-950 dark:text-zinc-50">
                   {a.avg_cost_usd === null ? "—" : display(a.avg_cost_usd, masked)}
