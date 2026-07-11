@@ -16,6 +16,22 @@
       ```
       Then: restart `ib-gateway` once to confirm self-heal + Discord disconnect/reconnect
       embeds, and start the Task 8 seven-day unattended soak (Phase 0 exit gate).
+      Phase 1's IBKR sync module (app/ibkr_sync.py, mock-tested) activates
+      automatically on the first successful connect — after login completes, also
+      verify `broker_accounts` gains an ibkr row and the dashboard shows both brokers.
+
+- [ ] **RH session renewal ~every 4.7 days**: Robinhood clamps token lifetime to
+      407891s. When the dashboard banner / Discord ping fires: locally
+      `rm secrets/rh-session.pickle && cd apps/worker && uv run python scripts/rh_login.py`,
+      then `scp secrets/rh-session.pickle root@204.168.169.27:/root/broker-cockpit/secrets/`.
+      Future improvement if the cadence annoys: refresh-token flow in the worker
+      (needs a writable pickle mount — currently :ro — and rotation-safe persistence).
+
+## Phase 1 status (2026-07-11): LIVE on Robinhood
+Deployed and verified on cockpit.gavinong.org with real data: 51 equities + 21
+options synced (account 937353795), total $375,540.08, snapshot #1 recorded,
+15-min market-hours sync loop running. Remaining: IBKR live activation (above)
+and the optional UW greeks enrichment (plan Task 9, needs UW_API_KEY).
 
 ## Phase 0 status snapshot (2026-07-11)
 Done: repo/compose skeleton, schema v1 + migrations, Google login + roles (live,
