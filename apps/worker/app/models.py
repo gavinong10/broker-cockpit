@@ -157,3 +157,19 @@ class AuditLog(Base):
     actor: Mapped[str] = mapped_column(String(320))               # email or "system"
     category: Mapped[str] = mapped_column(String(64))             # e.g. auth.login, gateway.disconnect
     payload: Mapped[dict] = mapped_column(JSONB, default=dict)
+
+
+class Feature(Base):
+    """Feature-factory: one owner-prompted feature build in a git worktree."""
+    __tablename__ = "features"
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    slug: Mapped[str] = mapped_column(String(48), unique=True)
+    prompt: Mapped[str] = mapped_column(Text)
+    model: Mapped[str] = mapped_column(String(48))
+    status: Mapped[str] = mapped_column(String(32), default="created")
+    diff_stat: Mapped[str | None] = mapped_column(Text)
+    risky_paths: Mapped[dict] = mapped_column(JSONB, default=list)
+    merge_sha: Mapped[str | None] = mapped_column(String(40))
+    report: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

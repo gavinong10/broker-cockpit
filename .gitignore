@@ -10,3 +10,4 @@ __pycache__/
 backups/
 .pytest_cache/
 secrets/
+.features/

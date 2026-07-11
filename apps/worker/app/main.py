@@ -16,6 +16,7 @@ from app import ibkr_sync, rh_refresh
 from app.internal_auth import require_internal
 from app.baskets_api import router as baskets_router
 from app.journal_api import router as journal_router
+from app.features_api import router as features_router
 from app.portfolio_api import router as portfolio_router
 from app.robinhood import RHAuthError, sync_robinhood
 from app.scheduler import sync_loop
@@ -36,6 +37,7 @@ async def _validation_error_no_echo(request: Request, exc: RequestValidationErro
 app.include_router(portfolio_router)
 app.include_router(baskets_router)
 app.include_router(journal_router)
+app.include_router(features_router)
 _engine = None
 
 def get_engine():

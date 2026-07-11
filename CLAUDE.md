@@ -40,6 +40,7 @@ Phase 0 task plan: `docs/superpowers/plans/2026-07-10-phase-0-skeleton.md`.
 ## Capabilities
 
 - conversation-import — turn a Claude session ID into a live basket (see docs/capabilities/conversation-import.md).
+- feature-factory — owner /features tab: prompt → Claude builds it in an isolated worktree → preview/accept/revert (see docs/capabilities/feature-factory.md).
 
 ## Standing rules for this project
 
