@@ -35,6 +35,10 @@ _threads_lock = threading.Lock()
 
 # Statuses that mean "the host may know more than the DB row does".
 NON_TERMINAL = frozenset({"created", "building"})
+# Reconciled on every list poll: NON_TERMINAL plus 'built' — accept/revert
+# outcomes land host-side first (the accept rebuild kills this very worker),
+# so a 'built' row can be 'accepted' on the host without the DB hearing back.
+RECONCILE = NON_TERMINAL | {"built"}
 
 
 class RunnerError(Exception):
@@ -193,11 +197,13 @@ def _run_build_thread(engine: Engine, slug: str, model: str, actor: str) -> None
 def reconcile_features(engine: Engine, rows: list[dict]) -> bool:
     """Adopt host-side outcomes for rows stuck in a non-terminal state — e.g. a
     build whose starting request died but whose host process ran to completion.
-    Only non-terminal rows cost an SSH round-trip. Returns True if any row was
-    refreshed (caller should re-read the DB)."""
+    Also covers 'built' rows, whose accept/revert outcome is written host-side
+    before the deploy rebuild kills this worker. Only RECONCILE-state rows cost
+    an SSH round-trip. Returns True if any row was refreshed (caller should
+    re-read the DB)."""
     refreshed = False
     for row in rows:
-        if row["status"] not in NON_TERMINAL:
+        if row["status"] not in RECONCILE:
             continue
         try:
             sync_feature(engine, row["slug"])
@@ -212,6 +218,7 @@ def sync_feature(engine: Engine, slug: str) -> dict:
     raw = _ssh(["status", slug], timeout=60)
     status = "unknown"
     diffstat = ""
+    merge_sha = None
     risky: list[str] = []
     report_lines: list[str] = []
     mode = None
@@ -220,6 +227,8 @@ def sync_feature(engine: Engine, slug: str) -> dict:
             status = line[7:].strip()
         elif line.startswith("DIFFSTAT "):
             diffstat = line[9:].strip()
+        elif line.startswith("MERGE "):
+            merge_sha = line[6:].strip()
         elif line == "RISKY_BEGIN":
             mode = "risky"
         elif line == "RISKY_END":
@@ -232,9 +241,12 @@ def sync_feature(engine: Engine, slug: str) -> dict:
             risky.append(line.strip())
         elif mode == "report":
             report_lines.append(line)
-    _set(engine, slug, status=status, diff_stat=diffstat,
-         risky_paths=json.dumps(risky), report="\n".join(report_lines).strip())
-    return {"status": status, "diffstat": diffstat, "risky": risky}
+    cols = dict(status=status, diff_stat=diffstat,
+                risky_paths=json.dumps(risky), report="\n".join(report_lines).strip())
+    if merge_sha:  # adopt an accept that this worker never heard back about
+        cols["merge_sha"] = merge_sha
+    _set(engine, slug, **cols)
+    return {"status": status, "diffstat": diffstat, "risky": risky, "merge_sha": merge_sha}
 
 
 def feature_diff(slug: str) -> str:
@@ -242,11 +254,15 @@ def feature_diff(slug: str) -> str:
 
 
 def accept_feature(engine: Engine, slug: str, actor: str) -> str:
+    """The runner echoes MERGE <sha> BEFORE kicking off its detached rebuild,
+    so this persists the outcome before that rebuild can kill this worker."""
     out = _ssh(["accept", slug], timeout=900)
     m = re.search(r"MERGE ([0-9a-f]+)", out)
     merge_sha = m.group(1) if m else None
+    push_warned = "WARN push" in out
     _set(engine, slug, status="accepted", merge_sha=merge_sha)
-    _audit(engine, actor, "feature.accepted", {"slug": slug, "merge_sha": merge_sha})
+    _audit(engine, actor, "feature.accepted",
+           {"slug": slug, "merge_sha": merge_sha, "push_failed": push_warned})
     return merge_sha or ""
 
 

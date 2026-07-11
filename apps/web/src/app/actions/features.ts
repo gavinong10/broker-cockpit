@@ -82,6 +82,11 @@ export async function featureAction(
       const b = body as { error?: string };
       return { ok: false, message: b?.error ?? `Worker returned ${status}` };
     }
+    if (verb === "accept") {
+      // The merge is committed and pushed; the container rebuild runs detached
+      // on the host, so the site (including this page) restarts underneath us.
+      return { ok: true, message: "Accepted — redeploying; the site may blip for about a minute." };
+    }
     const b = body as { status?: string };
     return { ok: true, message: b?.status ?? "done" };
   } catch {

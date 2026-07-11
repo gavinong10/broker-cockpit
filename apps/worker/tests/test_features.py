@@ -202,10 +202,14 @@ def test_start_build_registry_single_flight(monkeypatch):
     assert features.building_slug() is None
 
 
-# --- reconciliation: adopt host outcomes for non-terminal rows only ---------
+# --- reconciliation: adopt host outcomes for reconcilable rows only ---------
 
 
-def test_reconcile_refreshes_only_nonterminal_rows(monkeypatch):
+STATUS_ACCEPTED = ("STATUS accepted\nDIFFSTAT 1 file changed\nMERGE deadbeef1234\n"
+                   "RISKY_BEGIN\nRISKY_END\nREPORT_BEGIN\ndone\nREPORT_END\n")
+
+
+def test_reconcile_refreshes_only_reconcilable_rows(monkeypatch):
     ssh_calls, set_calls = [], []
 
     def fake_ssh(args, **kw):
@@ -217,25 +221,40 @@ def test_reconcile_refreshes_only_nonterminal_rows(monkeypatch):
                         lambda eng, slug, **cols: set_calls.append((slug, cols)))
     rows = [
         {"slug": "running", "status": "building"},
-        {"slug": "done", "status": "built"},
+        {"slug": "done", "status": "built"},        # reconciled: accept may have landed host-side
         {"slug": "dead", "status": "failed"},
         {"slug": "fresh", "status": "created"},
         {"slug": "live", "status": "accepted"},
         {"slug": "gone", "status": "discarded"},
     ]
     assert features.reconcile_features(None, rows) is True
-    # Only the two non-terminal rows cost an SSH round-trip.
-    assert ssh_calls == [["status", "running"], ["status", "fresh"]]
-    # And both adopt the host's authoritative status.
-    assert [(s, c["status"]) for s, c in set_calls] == [("running", "built"), ("fresh", "built")]
+    # Only building/created/built rows cost an SSH round-trip.
+    assert ssh_calls == [["status", "running"], ["status", "done"], ["status", "fresh"]]
+    # And all adopt the host's authoritative status.
+    assert [(s, c["status"]) for s, c in set_calls] == [
+        ("running", "built"), ("done", "built"), ("fresh", "built")]
 
 
-def test_reconcile_all_terminal_makes_no_ssh_calls(monkeypatch):
+def test_reconcile_built_row_adopts_host_accept_with_merge_sha(monkeypatch):
+    # An accept whose response the worker never received (its container was
+    # rebuilt): the host row says accepted + MERGE sha; the DB adopts both.
+    set_calls = []
+    monkeypatch.setattr(features, "_ssh", lambda args, **kw: STATUS_ACCEPTED)
+    monkeypatch.setattr(features, "_set",
+                        lambda eng, slug, **cols: set_calls.append((slug, cols)))
+    assert features.reconcile_features(None, [{"slug": "game", "status": "built"}]) is True
+    assert set_calls[0][0] == "game"
+    assert set_calls[0][1]["status"] == "accepted"
+    assert set_calls[0][1]["merge_sha"] == "deadbeef1234"
+
+
+def test_reconcile_terminal_rows_make_no_ssh_calls(monkeypatch):
     def boom(args, **kw):
         raise AssertionError("terminal rows must not be re-fetched")
     monkeypatch.setattr(features, "_ssh", boom)
-    rows = [{"slug": "a", "status": "built"}, {"slug": "b", "status": "reverted"},
-            {"slug": "c", "status": "failed_blocked_paths"}, {"slug": "d", "status": "killed"}]
+    rows = [{"slug": "a", "status": "accepted"}, {"slug": "b", "status": "reverted"},
+            {"slug": "c", "status": "failed_blocked_paths"}, {"slug": "d", "status": "killed"},
+            {"slug": "e", "status": "failed"}, {"slug": "f", "status": "discarded"}]
     assert features.reconcile_features(None, rows) is False
 
 
@@ -245,3 +264,52 @@ def test_reconcile_survives_unreachable_host(monkeypatch):
     monkeypatch.setattr(features, "_ssh", down)
     # No refresh, no exception: the DB's view stands until the next poll.
     assert features.reconcile_features(None, [{"slug": "a", "status": "building"}]) is False
+
+
+# --- accept: runner echoes outcome BEFORE its detached rebuild --------------
+
+
+def test_accept_parses_merge_sha_from_reordered_output(monkeypatch):
+    # New runner order: (optional WARN) -> MERGE sha -> detached rebuild.
+    set_calls, audits = [], []
+    monkeypatch.setattr(features, "_ssh", lambda args, **kw: "MERGE abc123def456\n")
+    monkeypatch.setattr(features, "_set",
+                        lambda eng, slug, **cols: set_calls.append((slug, cols)))
+    monkeypatch.setattr(features, "_audit",
+                        lambda eng, actor, cat, payload: audits.append((cat, payload)))
+    sha = features.accept_feature(None, "my-slug", "owner@x")
+    assert sha == "abc123def456"
+    assert set_calls == [("my-slug", {"status": "accepted", "merge_sha": "abc123def456"})]
+    assert audits[0][1]["push_failed"] is False
+
+
+def test_accept_surfaces_push_warning_in_audit(monkeypatch):
+    audits = []
+    monkeypatch.setattr(
+        features, "_ssh",
+        lambda args, **kw: "WARN push to origin failed — merge is local to the VPS; push manually\n"
+                           "MERGE abc123def456\n")
+    monkeypatch.setattr(features, "_set", lambda *a, **kw: None)
+    monkeypatch.setattr(features, "_audit",
+                        lambda eng, actor, cat, payload: audits.append((cat, payload)))
+    assert features.accept_feature(None, "my-slug", "owner@x") == "abc123def456"
+    assert audits[0][1]["push_failed"] is True
+
+
+def test_sync_feature_parses_merge_line(monkeypatch):
+    set_calls = []
+    monkeypatch.setattr(features, "_ssh", lambda args, **kw: STATUS_ACCEPTED)
+    monkeypatch.setattr(features, "_set",
+                        lambda eng, slug, **cols: set_calls.append((slug, cols)))
+    out = features.sync_feature(None, "game")
+    assert out["status"] == "accepted" and out["merge_sha"] == "deadbeef1234"
+    assert set_calls[0][1]["merge_sha"] == "deadbeef1234"
+
+
+def test_sync_feature_without_merge_line_leaves_merge_sha_untouched(monkeypatch):
+    set_calls = []
+    monkeypatch.setattr(features, "_ssh", lambda args, **kw: STATUS_BUILT)
+    monkeypatch.setattr(features, "_set",
+                        lambda eng, slug, **cols: set_calls.append((slug, cols)))
+    features.sync_feature(None, "game")
+    assert "merge_sha" not in set_calls[0][1]

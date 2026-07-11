@@ -215,6 +215,7 @@ case "$verb" in
     [ -d "$META" ] || { echo "missing"; exit 0; }
     echo "STATUS $(cat "$META/status" 2>/dev/null || echo unknown)"
     echo "DIFFSTAT $(cat "$META/diffstat" 2>/dev/null || true)"
+    [ -s "$META/merge_sha" ] && echo "MERGE $(cat "$META/merge_sha")"
     echo "RISKY_BEGIN"; cat "$META/risky.txt" 2>/dev/null || true; echo "RISKY_END"
     echo "REPORT_BEGIN"; tail -c 20000 "$META/report.md" 2>/dev/null || true; echo "REPORT_END"
     ;;
@@ -236,18 +237,32 @@ case "$verb" in
       echo "ERR merge failed: $(echo "$merr" | head -c 300)" >&2; exit 5
     fi
     merge_sha=$(git rev-parse HEAD)
-    docker compose -f compose.yml -f compose.prod.yml up -d --build worker web >/dev/null 2>&1
+    # ORDER MATTERS (learned the hard way): (a) push the merge to GitHub first —
+    # a push failure warns but never rolls back the merge; (b) persist + echo the
+    # outcome BEFORE any rebuild, because (c) the rebuild kills the very worker
+    # container whose SSH call we are answering. The rebuild runs fully detached
+    # (setsid + nohup, stdio severed) so it survives both this SSH session and
+    # the worker's death; its output lands in META/deploy.log.
+    git push git@github-factory:gavinong10/broker-cockpit.git main >/dev/null 2>&1 \
+      || echo "WARN push to origin failed — merge is local to the VPS; push manually"
     echo "accepted" > "$META/status"
+    echo "$merge_sha" > "$META/merge_sha"
     echo "MERGE $merge_sha"
+    setsid nohup docker compose -f compose.yml -f compose.prod.yml up -d --build worker web \
+      > "$META/deploy.log" 2>&1 < /dev/null &
     ;;
   revert)
     [[ "$arg3" =~ ^[0-9a-f]{7,40}$ ]] || { echo "ERR bad sha" >&2; exit 2; }
     cd "$REPO"
     git -c user.name=feature-factory -c user.email=factory@localhost \
       revert -m 1 --no-edit "$arg3" -q
-    docker compose -f compose.yml -f compose.prod.yml up -d --build worker web >/dev/null 2>&1
+    # Same ordering + detachment rationale as accept (see comment there).
+    git push git@github-factory:gavinong10/broker-cockpit.git main >/dev/null 2>&1 \
+      || echo "WARN push to origin failed — revert is local to the VPS; push manually"
     echo "reverted" > "$META/status"
     echo "REVERTED $(git rev-parse HEAD)"
+    setsid nohup docker compose -f compose.yml -f compose.prod.yml up -d --build worker web \
+      > "$META/deploy.log" 2>&1 < /dev/null &
     ;;
   discard)
     st=$(cat "$META/status" 2>/dev/null || echo unknown)
