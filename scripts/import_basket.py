@@ -31,6 +31,7 @@ from lib.conversation import extract_text, find_transcript, run_claude_json  # n
 VPS = "root@204.168.169.27"
 REMOTE_REPO = "/root/broker-cockpit"
 IMPORT_URL = "http://localhost:8000/internal/baskets/import"
+PLAN_URL_TEMPLATE = "http://localhost:8000/internal/baskets/{slug}/plan"
 BASKET_URL_BASE = "https://cockpit.gavinong.org/baskets"
 
 # EXACT manifest schema from the plan's Task A (app/baskets.py create_basket).
@@ -47,7 +48,24 @@ MANIFEST_SCHEMA = """{
       "sec_type": "OPT" | "STK",
       "qty": "optional decimal string; STK legs REQUIRE qty, OPT legs may omit it"
     }
-  ]
+  ],
+  "plan": {
+    "legs": [
+      {
+        "label": "short human label, e.g. 'NBIS Dec-28 220/330'",
+        "structure": [
+          {"occ": "FULL OCC SYMBOL", "sec_type": "OPT", "ratio": 1},
+          {"occ": "FULL OCC SYMBOL", "sec_type": "OPT", "ratio": -1}
+        ],
+        "qty": "decimal string: number of structure units planned",
+        "planned_net_debit": "decimal string: planned net cost per unit per share",
+        "tolerance_pct": "optional decimal string, default 5",
+        "breakeven_underlying": "optional decimal string",
+        "max_value_usd": "optional decimal string",
+        "thesis_note": "optional one-liner: why THIS strike/expiry"
+      }
+    ]
+  }
 }"""
 
 PROMPT_TEMPLATE = """You are drafting a trade-basket manifest from a Claude Code conversation \
@@ -66,6 +84,12 @@ contracts (specific strike/expiry), in which case use the full OCC symbol.
 - source_ref must be exactly: {session_id}
 - Focus on conclusions reached on or after {since} (ignore stale earlier drafts \
 that the conversation later superseded).
+- "plan" is OPTIONAL and only for PENDING intent: structures the conversation \
+decided to buy but has not bought yet, WITH specific contracts (strike + expiry) \
+and a stated planned entry cost. ratio +1 = leg to buy, -1 = leg to sell \
+(e.g. the short leg of a call vertical). Omit "plan" entirely when the \
+conversation contains no such pending structures. Positions already owned \
+belong in "legs", never in "plan".
 
 Transcript follows:
 
@@ -95,16 +119,29 @@ except urllib.error.HTTPError as e:
 """
 
 
-def push_manifest(manifest: dict, dry_run: bool) -> tuple[int, str, str]:
-    """POST the manifest to the deployed worker via SSH.
+def split_manifest(manifest: dict) -> tuple[dict, dict | None]:
+    """Split the drafted manifest into (basket_manifest, plan_manifest|None).
+
+    The worker's create_basket contract has no "plan" key; the plan block is
+    pushed separately to /internal/baskets/{slug}/plan after the basket lands.
+    """
+    basket = {k: v for k, v in manifest.items() if k != "plan"}
+    plan = manifest.get("plan")
+    if not isinstance(plan, dict) or not plan.get("legs"):
+        return basket, None
+    return basket, plan
+
+
+def push_payload(url: str, payload_obj: dict) -> tuple[int, str, str]:
+    """POST a JSON payload to the deployed worker via SSH.
 
     The payload is base64-encoded into the remote python one-liner so no shell
     quoting of JSON is needed; the internal token is read from the worker
     container's env and never exists on this Mac.
     """
-    payload = json.dumps({"manifest": manifest, "dry_run": dry_run})
+    payload = json.dumps(payload_obj)
     b64 = base64.b64encode(payload.encode("utf-8")).decode("ascii")
-    remote_py = REMOTE_PY.format(b64=b64, url=IMPORT_URL)
+    remote_py = REMOTE_PY.format(b64=b64, url=url)
     remote_cmd = (
         f"cd {REMOTE_REPO} && "
         f"docker compose -f compose.yml -f compose.prod.yml "
@@ -114,6 +151,10 @@ def push_manifest(manifest: dict, dry_run: bool) -> tuple[int, str, str]:
         ["ssh", VPS, remote_cmd], capture_output=True, text=True, timeout=120
     )
     return proc.returncode, proc.stdout, proc.stderr
+
+
+def push_manifest(manifest: dict, dry_run: bool) -> tuple[int, str, str]:
+    return push_payload(IMPORT_URL, {"manifest": manifest, "dry_run": dry_run})
 
 
 def shell_quote(s: str) -> str:
@@ -161,9 +202,13 @@ def main() -> int:
     print("Drafting manifest via headless `claude -p` (this run is your consent)...")
     manifest = run_claude_json(prompt)
     manifest["source_ref"] = args.session_id  # never trust the model with the ref
+    manifest, plan = split_manifest(manifest)
 
     print("\n=== Basket manifest ===")
     print(json.dumps(manifest, indent=2))
+    if plan is not None:
+        print("=== Plan (pending structures, monitored after import) ===")
+        print(json.dumps(plan, indent=2))
     print("=======================\n")
 
     if not args.yes:
@@ -199,9 +244,26 @@ def main() -> int:
         return code
 
     if args.dry_run:
-        print("Dry run complete — nothing written.")
-    else:
-        print(f"Basket live: {BASKET_URL_BASE}/{manifest['slug']}")
+        if plan is not None:
+            print("Dry run complete — nothing written (plan block previewed above; "
+                  "plan import runs only on a live import).")
+        else:
+            print("Dry run complete — nothing written.")
+        return 0
+
+    if plan is not None:
+        plan_url = PLAN_URL_TEMPLATE.format(slug=manifest["slug"])
+        code, out, err = push_payload(plan_url, {"manifest": plan})
+        if out.strip():
+            print(out.strip())
+        if code != 0:
+            print("Plan import failed — basket exists but its plan legs do not; "
+                  "fix the plan block and POST it manually.", file=sys.stderr)
+            if err.strip():
+                print(err.strip()[:2000], file=sys.stderr)
+            return code
+
+    print(f"Basket live: {BASKET_URL_BASE}/{manifest['slug']}")
     return 0
 
 
