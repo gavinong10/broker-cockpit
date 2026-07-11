@@ -1,6 +1,8 @@
 import Link from "next/link";
 import type { Role } from "@/lib/roles";
 
+export type NavRoute = "/" | "/capabilities" | "/exposure";
+
 /** Minimal text-link nav for the dashboard header. The Capabilities tab is
  * owner-only cosmetically here; the /capabilities page re-checks the role
  * server-side, so hiding the link is UX, not security. */
@@ -9,9 +11,9 @@ export default function NavTabs({
   active,
 }: {
   role: Role;
-  active: "/" | "/capabilities" | "/exposure";
+  active: NavRoute;
 }) {
-  const tabs: { href: "/" | "/capabilities" | "/exposure"; label: string }[] = [
+  const tabs: { href: NavRoute; label: string }[] = [
     { href: "/", label: "Portfolio" },
     { href: "/exposure", label: "Exposure" },
   ];

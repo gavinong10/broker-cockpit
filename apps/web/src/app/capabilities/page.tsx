@@ -9,7 +9,7 @@ import path from "node:path";
 import ReactMarkdown, { type Components } from "react-markdown";
 import { auth } from "@/auth";
 import type { Role } from "@/lib/roles";
-import NavTabs from "@/components/NavTabs";
+import SiteHeader from "@/components/SiteHeader";
 
 // fs reads must happen per request, never at build time.
 export const dynamic = "force-dynamic";
@@ -115,14 +115,7 @@ const mdComponents: Components = {
 };
 
 function PageHeader({ role }: { role: Role }) {
-  return (
-    <header className="sticky top-0 z-10 border-b border-hairline bg-surface/80 backdrop-blur">
-      <div className="mx-auto flex h-12 w-full max-w-5xl items-center gap-6 px-6">
-        <span className="text-sm font-semibold text-ink">broker-cockpit</span>
-        <NavTabs role={role} active="/capabilities" />
-      </div>
-    </header>
-  );
+  return <SiteHeader role={role} active="/capabilities" />;
 }
 
 export default async function CapabilitiesPage() {

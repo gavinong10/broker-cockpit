@@ -242,16 +242,36 @@ def exposure():
 
     with _get_engine().connect() as conn:
         rows = conn.execute(text(_POSITION_ROWS_SQL)).all()
+        chip_rows = conn.execute(text(_BASKET_CHIP_SQL)).all()
+    # OCC symbols are unique per contract, so (symbol, sec_type) is a safe key.
+    chips: dict[tuple, list[dict]] = {}
+    for c in chip_rows:
+        chips.setdefault((c.symbol, c.sec_type), []).append(
+            {"slug": c.slug, "qty": str(c.qty)})
     groups: dict[str, dict] = {}
     for r in rows:
         underlying = parse_underlying(r.symbol) if r.sec_type == "OPT" else r.symbol
-        g = groups.setdefault(underlying, {"stock": _ZERO, "options": _ZERO})
+        g = groups.setdefault(underlying, {"stock": _ZERO, "options": _ZERO, "cons": {}})
         mv = _row_market_value(r)
         g["options" if r.sec_type == "OPT" else "stock"] += mv
+        # Constituents aggregate across broker accounts, like the portfolio view.
+        key = (r.symbol, r.sec_type)
+        con = g["cons"].setdefault(key, {
+            "symbol": r.symbol,
+            "sec_type": r.sec_type,
+            "expiry": r.expiry.isoformat() if r.expiry else None,
+            "strike": str(r.strike) if r.strike is not None else None,
+            "right": r.right,
+            "qty": _ZERO,
+            "mv": _ZERO,
+        })
+        con["qty"] += r.qty
+        con["mv"] += mv
     total_abs = sum((abs(g["stock"] + g["options"]) for g in groups.values()), _ZERO)
     out = []
     for underlying, g in groups.items():
         net = g["stock"] + g["options"]
+        positions = sorted(g["cons"].values(), key=lambda c: abs(c["mv"]), reverse=True)
         out.append({
             "underlying": underlying,
             "stock_value_usd": str(g["stock"].quantize(_CENT)),
@@ -259,6 +279,16 @@ def exposure():
             "total_usd": str(net.quantize(_CENT)),
             "weight_pct": str(((abs(net) / total_abs * 100).quantize(_PCT))
                               if total_abs else _ZERO),
+            "positions": [{
+                "symbol": c["symbol"],
+                "sec_type": c["sec_type"],
+                "expiry": c["expiry"],
+                "strike": c["strike"],
+                "right": c["right"],
+                "qty": str(c["qty"]),
+                "market_value_usd": str(c["mv"].quantize(_CENT)),
+                "baskets": chips.get((c["symbol"], c["sec_type"]), []),
+            } for c in positions],
         })
     out.sort(key=lambda e: abs(Decimal(e["total_usd"])), reverse=True)
     return out

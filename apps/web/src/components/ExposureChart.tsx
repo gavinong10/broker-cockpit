@@ -1,10 +1,74 @@
-import { display, pct } from "@/lib/format";
-import type { ExposureRow } from "@/lib/exposure";
+import Link from "next/link";
+import { display, displayQty, pct } from "@/lib/format";
+import type { ExposureConstituent, ExposureRow } from "@/lib/exposure";
+import { positionLabel } from "@/lib/portfolio";
 
 // Validated categorical pair for the dark surface (dataviz palette slots 1-2,
 // dark steps; CVD ΔE 69.8, contrast ≥3:1): stock=blue, options=aqua.
 const STOCK_HUE = "#3987e5";
 const OPTION_HUE = "#199e70";
+
+function Bar({ stockPct, optPct }: { stockPct: number; optPct: number }) {
+  return (
+    <div className="flex h-2 items-stretch gap-[2px]" aria-hidden>
+      {stockPct > 0 && (
+        <span className="rounded-full" style={{ width: `${stockPct}%`, background: STOCK_HUE }} />
+      )}
+      {optPct > 0 && (
+        <span className="rounded-full" style={{ width: `${optPct}%`, background: OPTION_HUE }} />
+      )}
+    </div>
+  );
+}
+
+function RowSummary({ r, masked, expandable }: { r: ExposureRow; masked: boolean; expandable?: boolean }) {
+  return (
+    <div className="flex items-baseline justify-between text-[13px]">
+      <span className="text-ink tabular-nums">
+        {r.underlying}
+        {expandable && (
+          <>
+            <span className="ml-1.5 text-[11px] text-ink-3 group-open:hidden">▸</span>
+            <span className="ml-1.5 hidden text-[11px] text-ink-3 group-open:inline">▾</span>
+          </>
+        )}
+      </span>
+      <span className="text-ink-2 tabular-nums">
+        {display(r.total_usd, masked)}
+        <span className="ml-2 text-ink-3">
+          {pct(r.weight_pct)} · stock {display(r.stock_value_usd, masked)} · options{" "}
+          {display(r.option_value_usd, masked)}
+        </span>
+      </span>
+    </div>
+  );
+}
+
+function Constituent({ c, masked }: { c: ExposureConstituent; masked: boolean }) {
+  return (
+    <li className="flex items-baseline justify-between gap-3 py-1 text-[13px]">
+      <span className="flex min-w-0 items-baseline gap-2">
+        <span className="truncate text-ink-2">{positionLabel(c)}</span>
+        {c.sec_type === "OPT" && (
+          <span className="hidden text-[11px] text-ink-3 sm:inline">{c.symbol}</span>
+        )}
+        {c.baskets.map((b) => (
+          <Link
+            key={b.slug}
+            href={`/baskets/${b.slug}`}
+            className="rounded-full border border-accent/40 px-1.5 py-px text-[10px] leading-4 text-accent hover:border-accent"
+          >
+            {b.slug}
+          </Link>
+        ))}
+      </span>
+      <span className="shrink-0 tabular-nums text-ink-2">
+        {displayQty(c.qty, masked)} <span className="text-ink-3">·</span>{" "}
+        {display(c.market_value_usd, masked)}
+      </span>
+    </li>
+  );
+}
 
 /** Stacked horizontal bars: dollar exposure per underlying, stock + options.
  *
@@ -12,7 +76,10 @@ const OPTION_HUE = "#199e70";
  * subtracts in the printed numbers but is not drawn as negative width); exact
  * signed values always appear in the row labels, which is the table view.
  * Dollar labels respect masking; bar lengths are relative (like allocation
- * weights, which viewers already see).
+ * weights, which viewers already see). Rows expand (server-side <details>,
+ * matching the home page) to the per-position breakdown with basket chips;
+ * the synthetic "Other" row expands to its folded underlyings on the same
+ * bar scale.
  */
 export default function ExposureChart({
   rows,
@@ -25,6 +92,10 @@ export default function ExposureChart({
     ...rows.map((r) => Math.max(0, Number(r.stock_value_usd)) + Math.max(0, Number(r.option_value_usd))),
     1,
   );
+  const geometry = (r: ExposureRow) => ({
+    stockPct: (Math.max(0, Number(r.stock_value_usd)) / maxTotal) * 100,
+    optPct: (Math.max(0, Number(r.option_value_usd)) / maxTotal) * 100,
+  });
   return (
     <section aria-label="Dollar exposure by underlying" className="flex flex-col gap-4">
       <div className="flex items-baseline justify-between">
@@ -44,36 +115,41 @@ export default function ExposureChart({
       </div>
       <ul className="flex flex-col gap-3">
         {rows.map((r) => {
-          const stock = Math.max(0, Number(r.stock_value_usd));
-          const opt = Math.max(0, Number(r.option_value_usd));
-          const stockPct = (stock / maxTotal) * 100;
-          const optPct = (opt / maxTotal) * 100;
+          const expandable =
+            (r.positions?.length ?? 0) > 0 || (r.others?.length ?? 0) > 0;
+          if (!expandable) {
+            return (
+              <li key={r.underlying} className="flex flex-col gap-1">
+                <RowSummary r={r} masked={masked} />
+                <Bar {...geometry(r)} />
+              </li>
+            );
+          }
           return (
-            <li key={r.underlying} className="flex flex-col gap-1">
-              <div className="flex items-baseline justify-between text-[13px]">
-                <span className="text-ink tabular-nums">{r.underlying}</span>
-                <span className="text-ink-2 tabular-nums">
-                  {display(r.total_usd, masked)}
-                  <span className="ml-2 text-ink-3">
-                    {pct(r.weight_pct)} · stock {display(r.stock_value_usd, masked)} · options{" "}
-                    {display(r.option_value_usd, masked)}
-                  </span>
-                </span>
-              </div>
-              <div className="flex h-2 items-stretch gap-[2px]" aria-hidden>
-                {stockPct > 0 && (
-                  <span
-                    className="rounded-full"
-                    style={{ width: `${stockPct}%`, background: STOCK_HUE }}
-                  />
+            <li key={r.underlying}>
+              <details className="group">
+                <summary className="-mx-1 flex cursor-pointer list-none flex-col gap-1 rounded-md px-1 py-0.5 hover:bg-hover [&::-webkit-details-marker]:hidden">
+                  <RowSummary r={r} masked={masked} expandable />
+                  <Bar {...geometry(r)} />
+                </summary>
+                {r.positions && r.positions.length > 0 && (
+                  <ul className="ml-1 mt-1 border-l border-hairline pl-4">
+                    {r.positions.map((c) => (
+                      <Constituent key={`${c.symbol}-${c.sec_type}`} c={c} masked={masked} />
+                    ))}
+                  </ul>
                 )}
-                {optPct > 0 && (
-                  <span
-                    className="rounded-full"
-                    style={{ width: `${optPct}%`, background: OPTION_HUE }}
-                  />
+                {r.others && r.others.length > 0 && (
+                  <ul className="ml-1 mt-1 flex flex-col gap-2 border-l border-hairline pl-4">
+                    {r.others.map((o) => (
+                      <li key={o.underlying} className="flex flex-col gap-1">
+                        <RowSummary r={o} masked={masked} />
+                        <Bar {...geometry(o)} />
+                      </li>
+                    ))}
+                  </ul>
                 )}
-              </div>
+              </details>
             </li>
           );
         })}
