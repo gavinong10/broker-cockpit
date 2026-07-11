@@ -1,4 +1,6 @@
-import { listUsers } from "@/db";
+import { listAccessEvents, listUsers } from "@/db";
+import { groupAccessHistory } from "@/lib/access";
+import AccessHistory from "@/components/AccessHistory";
 import { enterViewerPreview } from "@/app/actions/view-as";
 import { getViewerContext } from "@/lib/viewerContext";
 import SiteHeader from "@/components/SiteHeader";
@@ -21,6 +23,12 @@ export default async function AdminPage() {
   }
 
   const users = await listUsers();
+  const events = await listAccessEvents();
+  const { byUser, other } = groupAccessHistory(
+    events,
+    users.map((u) => u.email),
+    new Date(),
+  );
 
   return (
     <>
@@ -33,6 +41,8 @@ export default async function AdminPage() {
           </p>
         </div>
         <UserAdmin users={users} />
+
+        <AccessHistory byUser={Array.from(byUser.entries())} other={other} />
 
         <section className="rounded-xl border border-hairline bg-card p-5">
           <h2 className="micro-label">Verify what viewers see</h2>

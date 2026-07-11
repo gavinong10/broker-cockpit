@@ -43,6 +43,23 @@ export async function deleteViewer(email: string): Promise<boolean> {
   return (r.rowCount ?? 0) > 0;
 }
 
+/** Recent access events (sign-ins + rejected attempts), newest first. */
+export async function listAccessEvents(limit = 300): Promise<
+  { actor: string; category: string; at: string }[]
+> {
+  const r = await pool.query(
+    "SELECT actor, category, at FROM audit_log " +
+      "WHERE category IN ('auth.login', 'auth.rejected') " +
+      "ORDER BY at DESC LIMIT $1",
+    [limit],
+  );
+  return r.rows.map((row) => ({
+    actor: row.actor,
+    category: row.category,
+    at: row.at instanceof Date ? row.at.toISOString() : String(row.at),
+  }));
+}
+
 export async function auditFromWeb(actor: string, category: string, payload: object) {
   try {
     await pool.query(
