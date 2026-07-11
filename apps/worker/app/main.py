@@ -13,6 +13,7 @@ from app.ibkr import gateway
 from app.internal_auth import require_internal
 from app.robinhood import RHAuthError, sync_robinhood
 from app.scheduler import sync_loop
+from app.snapshots import record_snapshot, snapshot_loop
 
 app = FastAPI()
 _engine = None
@@ -78,6 +79,10 @@ def health():
 async def start_sync_loop():
     asyncio.create_task(sync_loop(get_engine()))
 
+@app.on_event("startup")
+async def start_snapshot_loop():
+    asyncio.create_task(snapshot_loop(get_engine()))
+
 @app.get("/internal/ping", dependencies=[Depends(require_internal)])
 def internal_ping():
     return {"pong": True}
@@ -91,3 +96,13 @@ async def trigger_robinhood_sync():
     body = asdict(result)
     body["cash_usd"] = str(body["cash_usd"])  # Decimals serialize as strings
     return body
+
+@app.post("/internal/snapshots/run", dependencies=[Depends(require_internal)])
+async def trigger_snapshot():
+    snap = await asyncio.to_thread(record_snapshot, get_engine())
+    return {
+        "taken_on": snap["taken_on"].isoformat(),
+        "total_value_usd": str(snap["total_value_usd"]),
+        "cash_usd": str(snap["cash_usd"]),
+        "per_account": snap["per_account"],
+    }

@@ -6,8 +6,9 @@ from app.notify import alert
 
 FIRE_HOUR_UTC = 21  # 21:00 UTC daily
 
-def seconds_until_next(hour: int, now: datetime) -> float:
-    target = now.replace(hour=hour, minute=0, second=0, microsecond=0)
+def seconds_until_next(hour: int, now: datetime, minute: int = 0) -> float:
+    """Seconds until the next daily hh:mm (shared by heartbeat and snapshots)."""
+    target = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
     if target <= now:
         target += timedelta(days=1)
     return (target - now).total_seconds()
