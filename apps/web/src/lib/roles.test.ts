@@ -1,5 +1,21 @@
 import { describe, expect, it } from "vitest";
-import { canWrite, canRead } from "./roles";
+import { canWrite, canRead, isMasked } from "./roles";
+
+describe("isMasked — dollars are owner-only", () => {
+  it("owner unmasked by default, masked only via own flag", () => {
+    expect(isMasked("owner", false)).toBe(false);
+    expect(isMasked("owner", undefined)).toBe(false);
+    expect(isMasked("owner", true)).toBe(true);
+  });
+  it("viewer always masked, flag cannot unmask", () => {
+    expect(isMasked("viewer", false)).toBe(true);
+    expect(isMasked("viewer", true)).toBe(true);
+    expect(isMasked("viewer", undefined)).toBe(true);
+  });
+  it("null role always masked", () => {
+    expect(isMasked(null, false)).toBe(true);
+  });
+});
 
 describe("role guards", () => {
   it("owner can read and write", () => {

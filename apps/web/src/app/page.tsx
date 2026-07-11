@@ -1,4 +1,5 @@
 import { auth, signOut } from "../auth";
+import { isMasked } from "@/lib/roles";
 import { workerFetchRaw } from "@/lib/worker";
 import {
   positionLabel,
@@ -41,7 +42,7 @@ export default async function Home() {
     | { role?: "owner" | "viewer" | null; mask_amounts?: boolean }
     | undefined;
   const role = user?.role ?? null;
-  const masked = user?.mask_amounts ?? false;
+  const masked = isMasked(role, user?.mask_amounts);
 
   const [{ status, body }, snapshotsRes] = await Promise.all([
     workerFetchRaw("/internal/portfolio"),

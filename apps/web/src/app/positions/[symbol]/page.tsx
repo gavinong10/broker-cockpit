@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { auth } from "@/auth";
 import { display, usd } from "@/lib/format";
 import { positionLabel, type PositionDetail } from "@/lib/portfolio";
+import { isMasked } from "@/lib/roles";
 import { workerFetchRaw } from "@/lib/worker";
 
 function Stat({
@@ -38,9 +39,10 @@ export default async function PositionPage({
   const { symbol } = await params;
 
   const session = await auth();
-  const masked =
-    (session?.user as { mask_amounts?: boolean } | undefined)?.mask_amounts ??
-    false;
+  const u = session?.user as
+    | { role?: "owner" | "viewer" | null; mask_amounts?: boolean }
+    | undefined;
+  const masked = isMasked(u?.role ?? null, u?.mask_amounts);
 
   const { status, body } = await workerFetchRaw(
     `/internal/positions/${encodeURIComponent(symbol)}`,
