@@ -69,15 +69,22 @@ def _audit_gateway_disconnect() -> None:
 
 gateway.ib.disconnectedEvent += _audit_gateway_disconnect
 
+def _gateway_state() -> str:
+    if not settings.ib_enabled:
+        return "disabled"
+    return "connected" if gateway.connected else "down"
+
 @app.on_event("startup")
 async def start_gateway():
+    if not settings.ib_enabled:
+        return  # IB_ENABLED=false: no reconnect loop, no connect-failure alerts
     # on every successful connect, (re)start the 15-min IBKR position sync;
     # ibkr_sync.start_sync_task guards against double-starts on reconnects
     gateway.on_connect = lambda: ibkr_sync.start_sync_task(get_engine(), gateway)
     asyncio.create_task(gateway.connect_forever())
 
 def _heartbeat_status() -> dict:
-    return {"db": check_db(), "gateway": "connected" if gateway.connected else "down"}
+    return {"db": check_db(), "gateway": _gateway_state()}
 
 def _record_audit(category: str, payload: dict) -> None:
     with get_engine().begin() as conn:
@@ -92,7 +99,7 @@ async def start_heartbeat():
 
 @app.get("/health")
 def health():
-    return {"db": check_db(), "gateway": "connected" if gateway.connected else "down"}
+    return {"db": check_db(), "gateway": _gateway_state()}
 
 @app.on_event("startup")
 async def start_sync_loop():
