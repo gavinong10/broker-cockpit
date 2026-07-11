@@ -13,7 +13,8 @@ services:
     env_file: .env
     command: sh -c "uv run alembic upgrade head && uv run uvicorn app.main:app --host 0.0.0.0 --port 8000"
     volumes:
-      - ./secrets:/secrets:ro
+      # writable (not :ro): POST /internal/rh/refresh writes the new session pickle
+      - ./secrets:/secrets
     depends_on:
       postgres: { condition: service_healthy }
   ib-gateway:
