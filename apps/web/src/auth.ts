@@ -1,6 +1,6 @@
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
-import { getUserRole, pool } from "./db";
+import { getUserFlags, getUserRole, pool } from "./db";
 
 async function auditAuthEvent(actor: string, category: string, payload: object) {
   try {
@@ -31,13 +31,20 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
     async jwt({ token }) {
       if (token.email) {
-        (token as { role?: "owner" | "viewer" | null }).role = await getUserRole(token.email);
+        const flags = await getUserFlags(token.email);
+        const t = token as { role?: "owner" | "viewer" | null; mask_amounts?: boolean };
+        t.role = flags?.role ?? null;
+        t.mask_amounts = flags?.mask_amounts ?? false;
       }
       return token;
     },
     async session({ session, token }) {
-      (session.user as { role?: "owner" | "viewer" | null }).role =
-        (token.role as "owner" | "viewer" | null | undefined) ?? null;
+      const u = session.user as {
+        role?: "owner" | "viewer" | null;
+        mask_amounts?: boolean;
+      };
+      u.role = (token.role as "owner" | "viewer" | null | undefined) ?? null;
+      u.mask_amounts = (token.mask_amounts as boolean | undefined) ?? false;
       return session;
     },
     authorized: ({ auth }) => !!auth?.user,
