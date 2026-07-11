@@ -43,6 +43,11 @@ docker compose version   # sanity check the plugin is present
 git clone <repo-remote-url> broker-cockpit && cd broker-cockpit
 ```
 
+> **Updating an existing deployment:** use a plain `git pull` (merge pull),
+> NOT `git pull --ff-only` — feature-factory accepts create merge commits
+> directly on the VPS's main, so its history is legitimately ahead of origin
+> between pushes and ff-only will refuse.
+
 ## 4. Create `.env` from the password manager
 
 ```bash
