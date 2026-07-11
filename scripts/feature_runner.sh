@@ -229,9 +229,11 @@ case "$verb" in
     head_sha=$(cat "$META/head_sha" 2>/dev/null || true)
     [ -n "$head_sha" ] && [ "$(git rev-parse "refs/heads/$BR")" = "$head_sha" ] \
       || { echo "ERR branch head does not match reviewed SHA" >&2; exit 5; }
-    if ! git merge --no-ff -q -m "Accept feature/$slug (feature-factory)" "$BR"; then
-      git merge --abort || true
-      echo "ERR merge conflict" >&2; exit 5
+    # Inline identity: never depend on host git config for the merge commit.
+    if ! merr=$(git -c user.name=feature-factory -c user.email=factory@localhost \
+                merge --no-ff -q -m "Accept feature/$slug (feature-factory)" "$BR" 2>&1); then
+      git merge --abort 2>/dev/null || true
+      echo "ERR merge failed: $(echo "$merr" | head -c 300)" >&2; exit 5
     fi
     merge_sha=$(git rev-parse HEAD)
     docker compose -f compose.yml -f compose.prod.yml up -d --build worker web >/dev/null 2>&1
@@ -241,7 +243,8 @@ case "$verb" in
   revert)
     [[ "$arg3" =~ ^[0-9a-f]{7,40}$ ]] || { echo "ERR bad sha" >&2; exit 2; }
     cd "$REPO"
-    git revert -m 1 --no-edit "$arg3" -q
+    git -c user.name=feature-factory -c user.email=factory@localhost \
+      revert -m 1 --no-edit "$arg3" -q
     docker compose -f compose.yml -f compose.prod.yml up -d --build worker web >/dev/null 2>&1
     echo "reverted" > "$META/status"
     echo "REVERTED $(git rev-parse HEAD)"
