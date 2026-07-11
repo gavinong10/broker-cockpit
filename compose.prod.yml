@@ -1,6 +1,13 @@
 services:
   web:
     ports: !reset []
+  postgres:
+    # ports: ["5432:5432"] in compose.yml is a local-dev-only convenience
+    # (Task 2) for running tests against Postgres from the host. It must
+    # never reach prod: Docker publishes ports via iptables rules that run
+    # ahead of ufw, so "ufw allow 22/80/443 only" does NOT protect a
+    # docker-published port. Reset it here so postgres is internal-only.
+    ports: !reset []
   caddy:
     image: caddy:2
     # Least privilege: caddy is the internet-facing container and needs only
