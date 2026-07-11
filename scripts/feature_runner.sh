@@ -103,7 +103,12 @@ EOF
 
 case "$verb" in
   ping)
-    if [ -x "$CLAUDE_BIN" ] && [ -f "$ENV_FILE" ] && id -u "$FACTORY_USER" >/dev/null 2>&1; then
+    # Credential: either an api-key env file OR the factory user's own claude
+    # OAuth login (subscription mode; creds under /home/factory/.claude/).
+    cred=no
+    [ -f "$ENV_FILE" ] && cred=yes
+    sudo -u "$FACTORY_USER" test -s "$FACTORY_HOME/.claude/.credentials.json" 2>/dev/null && cred=yes
+    if [ -x "$CLAUDE_BIN" ] && [ "$cred" = yes ] && id -u "$FACTORY_USER" >/dev/null 2>&1; then
       echo configured
     else
       echo unconfigured
@@ -150,10 +155,14 @@ case "$verb" in
     # sudo -u factory + env -i: unprivileged AND scrubbed — the builder's world
     # is this clone, /home/factory, and its own Anthropic key. Root's shell
     # owns the redirections, so report/err land in root-only metadata.
+    # Credential env: api-key mode injects ANTHROPIC_API_KEY; subscription
+    # mode injects nothing — the CLI finds its OAuth creds via HOME.
+    cred_env=""
+    [ -f "$ENV_FILE" ] && cred_env=$(grep -v '^#' "$ENV_FILE" | xargs)
     { contract; echo; echo "# Feature request"; cat "$META/PROMPT.md"; } | \
       setsid timeout "$BUILD_TIMEOUT" sudo -u "$FACTORY_USER" env -i \
         HOME="$FACTORY_HOME" PATH=/usr/local/bin:/usr/bin:/bin \
-        $(grep -v '^#' "$ENV_FILE" | xargs) \
+        $cred_env \
         "$CLAUDE_BIN" -p --dangerously-skip-permissions --model "$model" \
         > "$META/report.md" 2> "$META/build.err" &
     bpid=$!

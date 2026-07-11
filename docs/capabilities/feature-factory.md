@@ -108,14 +108,22 @@ Run `scripts/setup_feature_factory.sh` as root on the VPS. It:
   running `claude --version`, and running git in a chowned clone) and exits
   nonzero if any line fails.
 
-### REQUIRED activation step: spend limit on the builder key
+### Builder credential: two modes
 
-The host cannot cap Anthropic spend. **Before the factory is ever enabled**,
-create a dedicated workspace for the builder key in the Anthropic Console and
-set a **monthly spend limit** on it (console.anthropic.com → Settings →
-Limits). This is the enforcement mechanism for the safety spec's token-budget
-cap — activation without it violates the spec (item 5). The setup script
-prints this reminder loudly; treat it as blocking.
+**Subscription mode (default, recommended):** setup runs `claude login` as the
+factory user; builds draw on the operator's Claude plan credits. Spend is
+hard-capped by the plan's own usage limits — this satisfies the safety spec's
+token-budget cap (item 5) with no console configuration. Trade-offs: builds
+share the plan's rate limits with the operator's own usage, and the credential
+the sandbox holds is the operator's Claude-account OAuth token (confined to
+/home/factory) rather than a billing-scoped API key.
+
+**API-key mode:** an `ANTHROPIC_API_KEY` in `/etc/feature-factory.env`
+(root:factory 0640). The host cannot cap API spend, so **before enabling**,
+create a dedicated workspace for the key in the Anthropic Console and set a
+**monthly spend limit** (console.anthropic.com → Settings → Limits) — without
+it, activation violates spec item 5. The setup script prints this reminder
+loudly in this mode; treat it as blocking.
 
 Until setup is done the Features tab shows "Build runner not configured" and
 the Build button is disabled — everything else in the app is unaffected.

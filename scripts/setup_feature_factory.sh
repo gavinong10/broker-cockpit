@@ -38,18 +38,37 @@ if [ ! -x "$CLAUDE_BIN" ]; then
   install -m 755 "$(readlink -f /root/.local/bin/claude)" "$CLAUDE_BIN"
 fi
 
-# 3. Builder Anthropic credential: root:factory 0640 — the ONLY secret the
-#    factory user can read on this host.
-if [ ! -f "$ENV_FILE" ]; then
-  if [ -f "$LEGACY_ENV" ]; then
-    mv "$LEGACY_ENV" "$ENV_FILE"
-  else
+# 3. Builder credential — two supported modes:
+#    (a) subscription: `claude login` AS THE FACTORY USER; OAuth creds live in
+#        /home/factory/.claude/ and builds draw on the operator's Claude plan
+#        (hard-capped by the plan — no separate spend limit needed).
+#    (b) api-key: ANTHROPIC_API_KEY in /etc/feature-factory.env
+#        (root:factory 0640) — requires a spend limit in the Anthropic console.
+#    Either way the credential is the ONLY secret the factory user can read.
+CRED_FILE=/home/factory/.claude/.credentials.json
+if [ -f "$LEGACY_ENV" ] && [ ! -f "$ENV_FILE" ]; then
+  mv "$LEGACY_ENV" "$ENV_FILE"
+fi
+if [ ! -f "$ENV_FILE" ] && ! sudo -u factory test -s "$CRED_FILE"; then
+  echo "Choose builder credential mode:"
+  echo "  1) subscription (claude login as the factory user — uses your Claude plan credits)"
+  echo "  2) api-key (separate API billing; set a console spend limit)"
+  read -rp "Mode [1/2]: " mode
+  if [ "$mode" = "2" ]; then
     read -rsp "Paste ANTHROPIC_API_KEY for the feature builder: " k; echo
     printf 'ANTHROPIC_API_KEY=%s\n' "$k" > "$ENV_FILE"
+  else
+    echo "Launching 'claude login' as the factory user — open the URL it prints"
+    echo "in your browser, authenticate, and paste the code back here."
+    sudo -Hu factory "$CLAUDE_BIN" login
+    sudo -u factory test -s "$CRED_FILE" || {
+      echo "FAIL: no credentials at $CRED_FILE after login"; exit 1; }
   fi
 fi
-chown root:factory "$ENV_FILE"
-chmod 640 "$ENV_FILE"
+if [ -f "$ENV_FILE" ]; then
+  chown root:factory "$ENV_FILE"
+  chmod 640 "$ENV_FILE"
+fi
 
 # 4. Assert the root-side secret perimeter (defense by construction, not hope).
 chmod 700 /root
@@ -93,7 +112,11 @@ fi
 check fail "factory CANNOT read /root/.ssh/id_ed25519" sudo -u factory cat /root/.ssh/id_ed25519
 check fail "factory CANNOT list /root"                  sudo -u factory ls /root
 check fail "factory CANNOT list $REPO/secrets"          sudo -u factory ls "$REPO/secrets"
-check ok   "factory CAN read $ENV_FILE"                 sudo -u factory cat "$ENV_FILE"
+if [ -f "$ENV_FILE" ]; then
+  check ok "factory CAN read $ENV_FILE"                 sudo -u factory cat "$ENV_FILE"
+else
+  check ok "factory CAN read its claude OAuth creds"    sudo -u factory test -s "$CRED_FILE"
+fi
 check ok   "factory CAN run $CLAUDE_BIN --version"      sudo -Hu factory "$CLAUDE_BIN" --version
 # Functional git check: clone → chown → factory git status, as the runner does.
 SC_TMP="$FACTORY_HOME/features/.selfcheck-$$"
@@ -109,8 +132,9 @@ fi
 echo "SELF-CHECK PASSED."
 
 echo
+if [ -f "$ENV_FILE" ]; then
 echo "############################################################################"
-echo "# REQUIRED BEFORE FIRST ACTIVATION — SPEND LIMIT                           #"
+echo "# REQUIRED BEFORE FIRST ACTIVATION — SPEND LIMIT (api-key mode)            #"
 echo "#                                                                          #"
 echo "# The host cannot cap Anthropic spend. Set a MONTHLY SPEND LIMIT on the    #"
 echo "# builder API key's workspace in the Anthropic Console                     #"
@@ -118,6 +142,11 @@ echo "# (console.anthropic.com -> Settings -> Limits) and use a key scoped to a 
 echo "# dedicated workspace for the factory. Do not enable the Features tab      #"
 echo "# until this limit exists.                                                 #"
 echo "############################################################################"
+else
+echo "Builder credential mode: SUBSCRIPTION (claude login as the factory user)."
+echo "Spend is hard-capped by your Claude plan's usage limits — no console spend"
+echo "limit needed. Builds share your plan's rate limits with your own usage."
+fi
 echo
 echo "Feature Factory host setup complete."
 echo "Ensure the worker mounts ./secrets (it already does) and can resolve host-gateway."
