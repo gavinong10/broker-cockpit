@@ -37,7 +37,12 @@ from pathlib import Path
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 
-from app.config import settings
+# Ensure the worker project root (…/apps/worker) is importable when this file is
+# run directly as a script (python scripts/backfill_snapshots.py), in which case
+# sys.path[0] is the scripts/ dir, not the project root.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from app.config import settings  # noqa: E402
 
 # --- constants ----------------------------------------------------------------
 
