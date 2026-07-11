@@ -165,3 +165,36 @@ pattern all come from the library.
   only has `docker-compose` (hyphen) — the SSH command targets the VPS form.
 - Tests: `python3 -m unittest discover scripts/tests` — pure stdlib, no live
   `claude`/ssh calls (subprocess is mocked).
+
+## Plan block (pending structures)
+
+The manifest may include an optional top-level `plan` object — structures the
+conversation decided to buy but has not bought yet, with specific contracts
+and a planned entry cost:
+
+```json
+"plan": {
+  "legs": [
+    {
+      "label": "NBIS Dec-28 220/330",
+      "structure": [
+        {"occ": "NBIS281215C00220000", "sec_type": "OPT", "ratio": 1},
+        {"occ": "NBIS281215C00330000", "sec_type": "OPT", "ratio": -1}
+      ],
+      "qty": "1",
+      "planned_net_debit": "17.23",
+      "tolerance_pct": "5",
+      "thesis_note": "short strike at street-high zone"
+    }
+  ]
+}
+```
+
+`import_basket.py` splits this off and, after the basket import succeeds,
+POSTs it to `/internal/baskets/{slug}/plan`. Plan legs are *monitored intent*:
+the worker grades each pending structure against live quotes on the sync
+cadence (in_window / drifted / thesis_stale / unquotable), Discord-alerts on
+status transitions, records mark history, and graduates legs to held when the
+synced positions cover their contracts (see the basket page's Plan section and
+docs/superpowers/plans/2026-07-11-basket-plan-monitor.md). Plans never place
+orders. Dry runs preview the plan block without pushing it.

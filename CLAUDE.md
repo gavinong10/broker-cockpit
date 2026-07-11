@@ -53,3 +53,16 @@ Phase 0 task plan: `docs/superpowers/plans/2026-07-10-phase-0-skeleton.md`.
 - Prefer editing `docs/superpowers/plans/*.md` task-by-task with review gates between
   tasks (subagent-driven-development style) over large unreviewed batches of changes,
   especially for anything touching auth, money, or broker connectivity.
+
+## Worktree development convention
+
+- Concurrent sessions each work in their own git worktree + branch
+  (`../broker-cockpit.worktrees/<branch>/`), merged back to `main` deliberately.
+  Each worktree needs its own `apps/web/node_modules` (npm ci) and a symlinked
+  root `.env`.
+- **Never deploy or push to production from a worktree.** Production (VPS pull,
+  `scp` of `.env`, container restarts on the VPS) happens only from the main
+  checkout on the `main` branch after merge + review.
+- Alembic migrations are a single linear chain shared across branches: whoever
+  merges second re-parents their migration's `down_revision` onto the new head
+  (or runs `alembic merge`) before merging.

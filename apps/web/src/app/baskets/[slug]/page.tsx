@@ -7,9 +7,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { display, pct, usd } from "@/lib/format";
 import { positionLabel, type BasketDetail } from "@/lib/portfolio";
+import { type PlanView } from "@/lib/plans";
 import { getViewerContext } from "@/lib/viewerContext";
 import { workerFetchRaw } from "@/lib/worker";
 import AllocationBar from "@/components/AllocationBar";
+import PlanSection from "@/components/PlanSection";
 import PositionTable from "@/components/PositionTable";
 import ValueChart from "@/components/ValueChart";
 
@@ -67,6 +69,13 @@ export default async function BasketPage({
   }
 
   const basket = body as BasketDetail;
+
+  // Plan (pending purchases) is optional: absence or worker trouble must
+  // never take down the basket page.
+  const planRes = await workerFetchRaw(
+    `/internal/baskets/${encodeURIComponent(slug)}/plan`,
+  );
+  const plan = planRes.status === 200 ? (planRes.body as PlanView) : null;
   const pl = Number(basket.pl_usd);
   const plPct = Number(basket.pl_pct);
 
@@ -115,6 +124,8 @@ export default async function BasketPage({
           <TextBlock label="Invalidation" text={basket.invalidation} />
         )}
       </section>
+
+      {plan !== null && <PlanSection plan={plan} masked={masked} />}
 
       <section
         aria-label="Basket stats"

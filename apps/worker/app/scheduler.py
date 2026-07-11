@@ -13,6 +13,7 @@ from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
 from app.notify import alert
+from app.plan_monitor import graduate_plans, monitor_plans
 from app.robinhood import RHAuthError, sync_robinhood
 
 log = logging.getLogger(__name__)
@@ -85,6 +86,16 @@ async def sync_loop(engine: Engine) -> None:
             log.info("robinhood sync ok: account=%s equities=%d options=%d",
                      result.account_external_id, result.equity_positions,
                      result.option_positions)
+            # Plan monitor rides the same cadence; the RH session was just
+            # validated by the sync. Its failures must never sink the loop.
+            try:
+                grad = await asyncio.to_thread(graduate_plans, engine)
+                summary = await asyncio.to_thread(monitor_plans, engine)
+                if grad["checked"] or summary["checked"]:
+                    log.info("plan graduation: %s; plan monitor: %s", grad, summary)
+            except Exception as exc:
+                log.warning("plan monitor failed: %s: %s",
+                            exc.__class__.__name__, exc)
         except RHAuthError as exc:
             log.warning("robinhood sync auth expired: %s", exc)
             _maybe_alert_auth_expired(engine, exc)
