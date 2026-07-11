@@ -1,3 +1,5 @@
+import TagChips from "@/components/TagChips";
+
 // Server component: horizontal allocation weight bars by symbol (incl. Cash).
 // dataviz: single series -> one validated neutral accent (#4f8ef7, >=3:1 vs
 // the dark surface), slim h-2 rounded bars on a recessive track, no legend
@@ -7,7 +9,7 @@
 // component stays server-side). Weights are always real, even for masked
 // viewers.
 
-export type AllocationItem = { label: string; weightPct: number };
+export type AllocationItem = { label: string; weightPct: number; tags?: string[] };
 
 const MAX_ITEMS = 10;
 const TOP_N = 8;
@@ -29,7 +31,10 @@ function BarRow({ item, max }: { item: AllocationItem; max: number }) {
   return (
     <div title={`${item.label}: ${item.weightPct.toFixed(2)}% of portfolio`}>
       <div className="mb-1 flex items-baseline justify-between gap-3 text-[13px]">
-        <span className="truncate text-ink-2">{item.label}</span>
+        <span className="flex min-w-0 items-baseline gap-2">
+          <span className="truncate text-ink-2">{item.label}</span>
+          <TagChips tags={item.tags} />
+        </span>
         <span className="tabular-nums text-ink-2">{item.weightPct.toFixed(1)}%</span>
       </div>
       <span className="block h-2 overflow-hidden rounded-full bg-card">

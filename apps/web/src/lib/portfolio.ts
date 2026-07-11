@@ -25,6 +25,8 @@ export type PortfolioPosition = {
   right: string | null;
   brokers: BrokerQty[];
   baskets?: BasketAllocation[];
+  /** Theme tags inherited from the underlying (absent on older workers). */
+  tags?: string[];
 };
 
 export type PortfolioAccount = {

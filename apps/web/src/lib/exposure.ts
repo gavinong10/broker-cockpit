@@ -13,6 +13,9 @@ export type ExposureConstituent = {
 
 export type ExposureRow = {
   underlying: string;
+  /** Theme tags inherited by every position on this underlying (absent on
+   * older workers and on the synthetic "Other" row). */
+  tags?: string[];
   stock_value_usd: string;
   option_value_usd: string;
   total_usd: string;
@@ -24,6 +27,30 @@ export type ExposureRow = {
 };
 
 export const EXPOSURE_TOP_N = 12;
+
+/** Rows matching a theme tag (no tag -> all rows). */
+export function filterByTag(rows: ExposureRow[], tag: string | null): ExposureRow[] {
+  if (!tag) return rows;
+  return rows.filter((r) => (r.tags ?? []).includes(tag));
+}
+
+export type ThemeTotal = { tag: string; total_usd: number; count: number };
+
+/** Aggregate |exposure| per theme tag, largest first. Multi-tagged
+ * underlyings count toward every tag they carry, so themes OVERLAP —
+ * totals are per-theme lenses, not a partition of the portfolio. */
+export function themeTotals(rows: ExposureRow[]): ThemeTotal[] {
+  const acc = new Map<string, ThemeTotal>();
+  for (const r of rows) {
+    for (const tag of r.tags ?? []) {
+      const t = acc.get(tag) ?? { tag, total_usd: 0, count: 0 };
+      t.total_usd += Math.abs(Number(r.total_usd));
+      t.count += 1;
+      acc.set(tag, t);
+    }
+  }
+  return [...acc.values()].sort((a, b) => b.total_usd - a.total_usd);
+}
 
 /** Top-N rows by |total|, remainder folded into one "Other" row (display-only
  * grouping per the dataviz rule: a 13th bar is never a new hue/row). The

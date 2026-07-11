@@ -150,6 +150,7 @@ export default async function Home() {
                 ...portfolio.positions.map((p) => ({
                   label: positionLabel(p),
                   weightPct: Number(p.weight_pct),
+                  tags: p.tags,
                 })),
                 {
                   label: "Cash",
