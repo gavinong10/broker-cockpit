@@ -37,6 +37,10 @@ Phase 0 task plan: `docs/superpowers/plans/2026-07-10-phase-0-skeleton.md`.
   `cockpit` DB — demo-seed rows there FK-block test cleanup. Example:
   `TEST_DATABASE_URL=postgresql+psycopg://cockpit:<pw>@localhost:5432/cockpit_test uv run pytest`.
 
+## Capabilities
+
+- conversation-import — turn a Claude session ID into a live basket (see docs/capabilities/conversation-import.md).
+
 ## Standing rules for this project
 
 - Every actual paid/authenticated API call (GCS uploads, Discord posts, IBKR gateway
