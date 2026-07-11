@@ -29,6 +29,18 @@
       Future improvement if the cadence annoys: refresh-token flow in the worker
       (needs a writable pickle mount — currently :ro — and rotation-safe persistence).
 
+## Monday 2026-07-13 runbook — import the AI call-spread basket
+1. Place the trades in Robinhood (per session 5a6b9ddd's final plan).
+2. Wait ≤15 min for the market-hours sync (or trigger from the Mac:
+   `ssh root@204.168.169.27 "cd /root/broker-cockpit && docker compose -f compose.yml -f compose.prod.yml exec -T worker uv run python -c \"import os,httpx;print(httpx.post('http://localhost:8000/internal/sync/robinhood',headers={'X-Internal-Token':os.environ['INTERNAL_API_TOKEN']},timeout=120).json())\""`).
+3. Preview: `python3 scripts/import_basket.py 5a6b9ddd-490e-4ae6-91c7-74db07e4140f --dry-run`
+   — every executed leg should now match; legs you skipped will show as conflicts (fine:
+   edit them out when prompted, or accept partial matching if the endpoint allocated the rest).
+4. Real import: same command without --dry-run → basket live at
+   https://cockpit.gavinong.org/baskets/<slug>.
+5. Sanity: basket card on the dashboard, Exposure tab reflects the new option exposure,
+   basket snapshot appears after tonight's 21:10 UTC run.
+
 ## Phase 1 status (2026-07-11): LIVE on Robinhood
 Deployed and verified on cockpit.gavinong.org with real data: 51 equities + 21
 options synced (account 937353795), total $375,540.08, snapshot #1 recorded,
