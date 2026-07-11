@@ -162,7 +162,7 @@ export default async function Home() {
               ]}
             />
 
-            {baskets.length > 0 && <BasketCards baskets={baskets} masked={masked} />}
+            <BasketCards baskets={baskets} masked={masked} />
 
             <PositionTable positions={portfolio.positions} masked={masked} />
           </>
