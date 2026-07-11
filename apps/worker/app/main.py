@@ -4,7 +4,8 @@ import os
 
 from dataclasses import asdict
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy import create_engine, text
@@ -19,6 +20,17 @@ from app.scheduler import sync_loop
 from app.snapshots import record_snapshot, snapshot_loop
 
 app = FastAPI()
+
+@app.exception_handler(RequestValidationError)
+async def _validation_error_no_echo(request: Request, exc: RequestValidationError):
+    # FastAPI's default 422 echoes the submitted body in each error's "input"
+    # field — which would reflect credentials (e.g. the RH refresh password)
+    # back in the response. Strip everything but location and message.
+    return JSONResponse(
+        status_code=422,
+        content={"detail": [{"loc": e.get("loc"), "msg": e.get("msg")} for e in exc.errors()]},
+    )
+
 app.include_router(portfolio_router)
 _engine = None
 
