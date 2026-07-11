@@ -9,6 +9,7 @@ import {
   type SnapshotPoint,
 } from "@/lib/portfolio";
 import BasketCards from "@/components/BasketCards";
+import NavTabs from "@/components/NavTabs";
 import PortfolioHeader from "@/components/PortfolioHeader";
 import AllocationBar from "@/components/AllocationBar";
 import PositionTable from "@/components/PositionTable";
@@ -76,9 +77,12 @@ export default async function Home() {
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-col gap-8 px-6 py-10 font-sans">
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold text-zinc-950 dark:text-zinc-50">
-          broker-cockpit
-        </h1>
+        <div className="flex items-center gap-6">
+          <h1 className="text-lg font-semibold text-zinc-950 dark:text-zinc-50">
+            broker-cockpit
+          </h1>
+          <NavTabs role={role} active="/" />
+        </div>
         <div className="flex items-center gap-3 text-sm text-zinc-500 dark:text-zinc-400">
           <span>
             {email} ({role ?? "no role"})

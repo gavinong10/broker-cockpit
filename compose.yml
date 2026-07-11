@@ -40,6 +40,9 @@ services:
     build: apps/web
     env_file: .env
     ports: ["3000:3000"]
+    volumes:
+      # read at request time by /capabilities — new docs appear without a rebuild
+      - ./docs/capabilities:/srv/docs/capabilities:ro
     depends_on: [worker]
 volumes:
   pgdata:
