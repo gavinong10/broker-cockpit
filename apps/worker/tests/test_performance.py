@@ -9,10 +9,12 @@ from datetime import date
 from decimal import Decimal
 
 from app.performance import (
+    carry_forward_values,
     dollar_pnl,
     money_weighted_return,
     net_contributions,
     net_contributions_series,
+    opening_value,
     twr,
 )
 
@@ -152,3 +154,58 @@ def test_twr_skips_only_the_zero_prev_step():
 def test_twr_too_short_is_none():
     assert twr([(date(2025, 1, 1), D("100"))], []) is None
     assert twr([], []) is None
+
+
+# --- non-trading-day carry-forward (read-path helpers) ------------------------
+
+def test_carry_forward_fills_interior_zeros():
+    # Weekend/holiday rows stored as 0 must carry the prior positive value fwd,
+    # not dip to zero. Mirrors 2025-12-31 (real) -> 2026-01-01..04 (holidays).
+    series = [(date(2025, 12, 31), D("301979.47")),
+              (date(2026, 1, 1), D("0")),
+              (date(2026, 1, 2), D("320033.02")),
+              (date(2026, 1, 3), D("0")),
+              (date(2026, 1, 4), D("0"))]
+    filled = carry_forward_values(series)
+    assert filled == [(date(2025, 12, 31), D("301979.47")),
+                      (date(2026, 1, 1), D("301979.47")),
+                      (date(2026, 1, 2), D("320033.02")),
+                      (date(2026, 1, 3), D("320033.02")),
+                      (date(2026, 1, 4), D("320033.02"))]
+    # No interior (or any) point is <= 0 after the fill.
+    assert all(v > 0 for _, v in filled)
+
+
+def test_carry_forward_drops_leading_nonpositive():
+    # Nothing to carry before the first positive value -> those points drop.
+    series = [(date(2025, 1, 1), D("0")),
+              (date(2025, 1, 2), D("0")),
+              (date(2025, 1, 3), D("100")),
+              (date(2025, 1, 4), D("0"))]
+    filled = carry_forward_values(series)
+    assert filled == [(date(2025, 1, 3), D("100")),
+                      (date(2025, 1, 4), D("100"))]
+
+
+def test_opening_value_skips_zero_on_boundary_date():
+    # YTD-style: the exact boundary date (Jan 1) is a holiday stored as 0, so the
+    # opening value must resolve to the prior positive row (Dec 31), not $0.
+    series = [(date(2025, 12, 30), D("300000")),
+              (date(2025, 12, 31), D("301979.47")),
+              (date(2026, 1, 1), D("0"))]
+    assert opening_value(series, date(2026, 1, 1)) == (date(2025, 12, 31), D("301979.47"))
+
+
+def test_opening_value_skips_run_of_zeros_before_boundary():
+    series = [(date(2025, 12, 31), D("301979.47")),
+              (date(2026, 1, 1), D("0")),
+              (date(2026, 1, 3), D("0")),
+              (date(2026, 1, 4), D("0"))]
+    # Boundary on Jan 4 (a holiday) still carries back to Dec 31.
+    assert opening_value(series, date(2026, 1, 4)) == (date(2025, 12, 31), D("301979.47"))
+
+
+def test_opening_value_none_when_no_prior_positive():
+    series = [(date(2026, 1, 1), D("0")), (date(2026, 1, 2), D("500"))]
+    # Boundary before any positive value -> unavailable (never a $0 opening).
+    assert opening_value(series, date(2026, 1, 1)) is None

@@ -146,6 +146,54 @@ def net_contributions_series(flows: list[Flow]) -> list[tuple[date, Decimal]]:
     return out
 
 
+# --- non-trading-day carry-forward (read-path helpers) ------------------------
+
+def carry_forward_values(series: list[DailyValue]) -> list[DailyValue]:
+    """Forward-fill non-trading-day values so the series never dips to zero.
+
+    Backfilled snapshots store weekends/holidays with total_value_usd == 0 (no
+    market close to observe). A raw series would sawtooth to $0 on every such
+    day. This carries the most recent prior POSITIVE value forward, keeping the
+    line flat over non-trading days — matching how the going-forward daily
+    snapshot job behaves. Real (positive) points are untouched.
+
+    Any values <= 0 are treated as non-trading placeholders. Leading points with
+    no prior positive value are DROPPED (nothing to carry). ``series`` must be
+    sorted ascending by date.
+    """
+    out: list[DailyValue] = []
+    last_positive: Decimal | None = None
+    for d, v in series:
+        val = Decimal(str(v))
+        if val > 0:
+            last_positive = val
+            out.append((d, val))
+        elif last_positive is not None:
+            out.append((d, last_positive))
+        # else: leading non-positive with no prior positive -> drop
+    return out
+
+
+def opening_value(series: list[DailyValue], boundary: date) -> DailyValue | None:
+    """Most recent (date, value) on or before ``boundary`` with a POSITIVE value.
+
+    Snapshot rows valued at total_value_usd <= 0 (non-trading days) are ignored,
+    so a period boundary landing on a weekend/holiday resolves to the prior
+    trading day's real value (carry-forward) instead of $0 — e.g. a YTD boundary
+    on Jan 1 (a holiday, stored as 0) resolves to Dec 31's real close. Returns
+    the (date, value) of that row, or ``None`` if no positive value exists on or
+    before the boundary. ``series`` must be sorted ascending by date.
+    """
+    found: DailyValue | None = None
+    for d, v in series:
+        if d > boundary:
+            break
+        val = Decimal(str(v))
+        if val > 0:
+            found = (d, val)
+    return found
+
+
 # --- time-weighted return (estimated; secondary) ------------------------------
 
 def twr(daily_values: list[DailyValue], flows: list[Flow]) -> float | None:

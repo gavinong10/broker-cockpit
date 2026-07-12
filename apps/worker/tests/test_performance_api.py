@@ -165,3 +165,62 @@ def test_performance_inception_always_available_with_one_snapshot(pg_engine):
 def test_performance_bad_period_400(client):
     assert client.get("/internal/performance?period=nope",
                       headers=TOKEN_HEADERS).status_code == 400
+
+
+def _seed_nontrading_zeros(eng):
+    """Reseed snapshots with non-trading days stored as total_value_usd == 0,
+    mirroring the live backfill: a real Dec-31 close, a $0 Jan-1 holiday landing
+    exactly on the YTD boundary, then a real Jan-2 and an observed terminal."""
+    with eng.begin() as conn:
+        conn.execute(text("DELETE FROM snapshots"))
+        rows = (
+            # (date, value, source) — 0-valued rows are non-trading placeholders.
+            (date(2025, 12, 31), "301979.47", "backfill_rh"),   # real close
+            (date(2026, 1, 1), "0", "backfill_rh"),             # holiday == 0 (YTD boundary)
+            (date(2026, 1, 2), "320033.02", "backfill_rh"),     # real close
+            (date(2026, 1, 3), "0", "backfill_rh"),             # weekend == 0
+            (date(2026, 1, 4), "0", "backfill_rh"),             # weekend == 0
+            (date(2026, 7, 11), "375529.08", "observed"),       # observed terminal
+        )
+        for d, val, src in rows:
+            conn.execute(text(
+                "INSERT INTO snapshots (taken_on, total_value_usd, cash_usd, "
+                "per_account, source) VALUES (:d, :v, 0, CAST(:pa AS jsonb), :src)"),
+                {"d": d, "v": val, "src": src,
+                 "pa": json.dumps({f"robinhood:{RH_ACCOUNT}": {"value_usd": val}})})
+
+
+def test_performance_ytd_boundary_skips_zero_snapshot(pg_engine):
+    # YTD's Jan-1 boundary lands on a $0 holiday row; it must carry back to the
+    # Dec-31 real close instead of resolving to $0. That makes YTD AVAILABLE.
+    _seed_nontrading_zeros(pg_engine)
+    import app.main as main
+    prev = main._engine
+    main._engine = pg_engine
+    try:
+        c = TestClient(app)
+        ytd = c.get("/internal/performance?period=ytd", headers=TOKEN_HEADERS).json()
+        inception = c.get("/internal/performance?period=inception",
+                          headers=TOKEN_HEADERS).json()
+    finally:
+        main._engine = prev
+
+    # YTD is now available with an opening value carried from Dec 31 (301979.47),
+    # flagged estimated (pre-go-live backfill boundary).
+    assert ytd["available"] is True
+    assert ytd["boundary_estimated"] is True
+    assert ytd["cumulative_return_pct"] is not None
+    assert ytd["dollar_pnl_usd"] is not None
+
+    # value_series is forward-filled: NO interior <= 0 points, and the Jan-1
+    # holiday carries Dec-31's value (not $0).
+    vs = {p["date"]: p["value_usd"] for p in ytd["value_series"]}
+    assert all(float(v) > 0 for v in vs.values())
+    assert vs["2026-01-01"] == "301979.47"      # holiday carried from Dec 31
+    assert vs["2026-01-03"] == "320033.02"      # weekend carried from Jan 2
+    assert vs["2026-07-11"] == "375529.08"      # real terminal untouched
+
+    # Since-inception is unaffected by the carry-forward: it uses only flows +
+    # today's exact value. Terminal stays the real observed 375529.08.
+    assert inception["available"] is True
+    assert inception["current_value_usd"] == "375529.08"

@@ -336,16 +336,31 @@ def performance_endpoint(period: str = Query(default="inception")):
     all_flows: list[tuple[date, Decimal]] = [
         (r.d, -Decimal(r.amount_usd)) for r in flow_rows]
 
-    # Terminal = the latest (observed) snapshot: today's exact value.
-    terminal = snap_rows[-1]
-    end_date = terminal.taken_on
-    current_value = Decimal(terminal.total_value_usd)
+    # Backfilled snapshots store non-trading days (weekends/holidays) with
+    # total_value_usd == 0. Read-path only (the DB is never mutated): carry the
+    # most recent prior POSITIVE value forward so the value line stays flat over
+    # non-trading days instead of sawtoothing to $0, and so a period boundary
+    # landing on such a day resolves to the prior trading day's real value.
+    row_by_date = {r.taken_on: r for r in snap_rows}
+    daily_raw = [(r.taken_on, Decimal(r.total_value_usd)) for r in snap_rows]
+    daily_pairs = performance.carry_forward_values(daily_raw)
+    if not daily_pairs:
+        raise HTTPException(status_code=409, detail="no positive snapshots yet")
 
+    # Terminal = the latest carried value: today's exact (observed) value.
+    end_date, current_value = daily_pairs[-1]
+
+    def _estimated_at(d: date) -> bool:
+        r = row_by_date.get(d)
+        return _snapshot_estimated(r.source, r.per_account) if r is not None else False
+
+    # value_series is forward-filled: no zero interior points, so the chart line
+    # never dips on non-trading days. The per-row estimated flag rides through.
     value_series = [{
-        "date": r.taken_on.isoformat(),
-        "value_usd": str(Decimal(r.total_value_usd)),
-        "estimated": _snapshot_estimated(r.source, r.per_account),
-    } for r in snap_rows]
+        "date": d.isoformat(),
+        "value_usd": str(v),
+        "estimated": _estimated_at(d),
+    } for d, v in daily_pairs]
     contributions_series = [
         {"date": d.isoformat(), "value_usd": str(v)}
         for d, v in performance.net_contributions_series(all_flows)]
@@ -370,7 +385,6 @@ def performance_endpoint(period: str = Query(default="inception")):
     ]
 
     start = _period_start(period, end_date)
-    daily_pairs = [(r.taken_on, Decimal(r.total_value_usd)) for r in snap_rows]
 
     if start is None:
         # Inception / all: real flows only + today's exact value. Nothing rests on
@@ -392,25 +406,26 @@ def performance_endpoint(period: str = Query(default="inception")):
         # a blank/NaN/wrong number). The annualized IRR distorts badly over short
         # windows, so the CUMULATIVE (non-annualized) period return is the headline
         # and the annualized figure rides along as a secondary value.
-        boundary = None
-        for r in snap_rows:
-            if r.taken_on <= start:
-                boundary = r
-            else:
-                break
-        if boundary is None:
+        # Skip non-trading-day rows (total <= 0): the opening value is the most
+        # recent prior row with a POSITIVE value, so a boundary on a weekend/
+        # holiday (stored as 0) resolves to the prior trading day's real value.
+        opening = performance.opening_value(daily_raw, start)
+        if opening is None:
             return _unavailable()
-        start_value = Decimal(boundary.total_value_usd)
+        boundary_date, start_value = opening
+        boundary_row = row_by_date.get(boundary_date)
         period_real_flows = [f for f in all_flows
-                             if boundary.taken_on < f[0] <= end_date]
-        pnl_flows = [(boundary.taken_on, -start_value)] + period_real_flows
-        twr_daily = [p for p in daily_pairs if p[0] >= boundary.taken_on]
+                             if boundary_date < f[0] <= end_date]
+        pnl_flows = [(boundary_date, -start_value)] + period_real_flows
+        twr_daily = [p for p in daily_pairs if p[0] >= boundary_date]
         solid = False
-        boundary_estimated = _snapshot_estimated(boundary.source, boundary.per_account)
+        boundary_estimated = (
+            _snapshot_estimated(boundary_row.source, boundary_row.per_account)
+            if boundary_row is not None else True)
         headline_metric = "cumulative"
         if boundary_estimated:
             caveats.append(
-                f"Period opening value ({boundary.taken_on.isoformat()}) is an "
+                f"Period opening value ({boundary_date.isoformat()}) is an "
                 "estimated pre-go-live snapshot.")
 
     mwr = performance.money_weighted_return(pnl_flows, current_value, end_date)
