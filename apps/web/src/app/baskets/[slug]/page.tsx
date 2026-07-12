@@ -60,7 +60,7 @@ export default async function BasketPage({
   if (status === 404) notFound();
   if (status !== 200) {
     return (
-      <main className="mx-auto w-full max-w-5xl px-6 py-10 font-sans">
+      <main className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-6 font-sans">
         <p className="rounded-lg border border-loss/40 bg-card px-4 py-2.5 text-sm text-loss">
           Basket data unavailable (worker returned {status}).
         </p>
@@ -91,7 +91,7 @@ export default async function BasketPage({
   }));
 
   return (
-    <main className="mx-auto flex w-full max-w-5xl flex-col gap-10 px-6 py-10 font-sans">
+    <main className="mx-auto flex w-full max-w-5xl flex-col gap-10 px-4 py-10 sm:px-6 font-sans">
       <div>
         <Link
           href="/"

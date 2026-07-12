@@ -68,7 +68,7 @@ export default function RhRefreshButton({
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="rounded-full border border-hairline px-3.5 py-1.5 text-[13px] text-ink-2 transition-colors hover:bg-hover hover:text-ink"
+          className="inline-flex min-h-[40px] items-center rounded-full border border-hairline px-3.5 py-1.5 text-[13px] text-ink-2 transition-colors hover:bg-hover hover:text-ink sm:min-h-0"
         >
           Refresh Robinhood session
         </button>
@@ -141,7 +141,7 @@ export default function RhRefreshButton({
         <button
           type="submit"
           disabled={pending}
-          className="rounded-full border border-hairline px-3.5 py-1.5 text-[13px] font-medium text-ink transition-colors hover:bg-hover disabled:opacity-50"
+          className="inline-flex min-h-[40px] items-center rounded-full border border-hairline px-3.5 py-1.5 text-[13px] font-medium text-ink transition-colors hover:bg-hover disabled:opacity-50 sm:min-h-0"
         >
           {pending ? "Refreshing…" : "Refresh"}
         </button>
@@ -149,7 +149,7 @@ export default function RhRefreshButton({
           type="button"
           onClick={close}
           disabled={pending}
-          className="rounded-full px-3.5 py-1.5 text-[13px] text-ink-2 transition-colors hover:text-ink disabled:opacity-50"
+          className="inline-flex min-h-[40px] items-center rounded-full px-3.5 py-1.5 text-[13px] text-ink-2 transition-colors hover:text-ink disabled:opacity-50 sm:min-h-0"
         >
           Cancel
         </button>

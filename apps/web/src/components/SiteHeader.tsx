@@ -6,7 +6,7 @@ import NavTabs, { type NavRoute } from "@/components/NavTabs";
 export default function SiteHeader({ active }: { active: NavRoute }) {
   return (
     <header className="sticky top-0 z-10 border-b border-hairline bg-surface/80 backdrop-blur">
-      <div className="mx-auto flex h-12 w-full max-w-5xl items-center gap-6 px-6">
+      <div className="mx-auto flex h-12 w-full max-w-5xl items-center gap-4 px-4 sm:gap-6 sm:px-6">
         <span className="text-sm font-semibold text-ink">broker-cockpit</span>
         <NavTabs active={active} />
       </div>

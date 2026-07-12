@@ -19,7 +19,7 @@ export default async function FeaturesPage() {
     return (
       <div className="min-h-screen">
         <SiteHeader active="/features" />
-        <main className="mx-auto w-full max-w-5xl px-6 py-8">
+        <main className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6">
           <p className="text-sm text-ink-2">Not available.</p>
         </main>
       </div>
@@ -39,7 +39,7 @@ export default async function FeaturesPage() {
   return (
     <div className="min-h-screen">
       <SiteHeader active="/features" />
-      <main className="mx-auto w-full max-w-5xl px-6 py-8">
+      <main className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6">
         <div className="mb-6">
           <h1 className="text-lg font-semibold text-ink">Features</h1>
           <p className="mt-1 max-w-2xl text-[13px] text-ink-2">

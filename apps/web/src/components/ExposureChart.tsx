@@ -24,7 +24,7 @@ function Bar({ stockPct, optPct }: { stockPct: number; optPct: number }) {
 
 function RowSummary({ r, masked, expandable, activeTag }: { r: ExposureRow; masked: boolean; expandable?: boolean; activeTag?: string | null }) {
   return (
-    <div className="flex items-baseline justify-between text-[13px]">
+    <div className="flex flex-col gap-0.5 text-[13px] sm:flex-row sm:items-baseline sm:justify-between sm:gap-2">
       <span className="flex min-w-0 items-baseline gap-2 text-ink tabular-nums">
         {r.underlying}
         <TagChips tags={r.tags} activeTag={activeTag} />

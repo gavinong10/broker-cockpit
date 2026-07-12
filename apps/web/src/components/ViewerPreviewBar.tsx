@@ -5,7 +5,7 @@ import { exitViewerPreview } from "@/app/actions/view-as";
 export default function ViewerPreviewBar() {
   return (
     <div className="border-b border-amber-500/40 bg-amber-950/60">
-      <div className="mx-auto flex h-10 w-full max-w-5xl items-center justify-between gap-4 px-6">
+      <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-2 sm:min-h-10 sm:px-6">
         <p className="text-[13px] text-amber-200">
           Viewer preview — you are seeing exactly what a view-only user sees
           (dollars and quantities masked; journal, features and capabilities

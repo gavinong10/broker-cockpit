@@ -24,7 +24,7 @@ export default async function JournalPage({
   // unmaskable, so it is only for current owner/viewer roles.
   if (!canRead(view.role)) {
     return (
-      <main className="mx-auto w-full max-w-5xl px-6 py-10 font-sans">
+      <main className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-6 font-sans">
         <SiteHeader active="/journal" />
         <p className="mt-8 text-sm text-ink-3">Not available.</p>
       </main>
@@ -40,7 +40,7 @@ export default async function JournalPage({
   const entries = res.status === 200 ? (res.body as JournalEntry[]) : [];
 
   return (
-    <main className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-6 py-10 font-sans">
+    <main className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-10 sm:px-6 font-sans">
       <SiteHeader active="/journal" />
 
       <form method="GET" className="flex flex-wrap items-center gap-3">

@@ -26,7 +26,7 @@ export default function PortfolioHeader({
   return (
     <header>
       <p className="micro-label">Portfolio value</p>
-      <p className="mt-1 text-[40px] font-semibold leading-tight tracking-tight text-ink">
+      <p className="mt-1 text-[32px] font-semibold leading-tight tracking-tight text-ink sm:text-[40px]">
         {display(totalValueUsd, masked)}
       </p>
       <p className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm">

@@ -128,7 +128,7 @@ export default async function CapabilitiesPage() {
     return (
       <>
         <PageHeader />
-        <main className="mx-auto flex w-full max-w-2xl flex-col gap-10 px-6 py-10 font-sans">
+        <main className="mx-auto flex w-full max-w-2xl flex-col gap-10 px-4 py-10 sm:px-6 font-sans">
           <p className="text-sm text-ink-2">Not available.</p>
         </main>
       </>
@@ -141,7 +141,7 @@ export default async function CapabilitiesPage() {
     <>
       <PageHeader />
       {/* Readable prose measure. */}
-      <main className="mx-auto flex w-full max-w-2xl flex-col gap-10 px-6 py-10 font-sans">
+      <main className="mx-auto flex w-full max-w-2xl flex-col gap-10 px-4 py-10 sm:px-6 font-sans">
         {docs.length === 0 && (
           <p className="text-sm text-ink-2">
             No capability docs found. Add markdown files to docs/capabilities/

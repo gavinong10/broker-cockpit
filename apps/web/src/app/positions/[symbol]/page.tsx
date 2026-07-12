@@ -50,7 +50,7 @@ export default async function PositionPage({
   if (status === 404) notFound();
   if (status !== 200) {
     return (
-      <main className="mx-auto w-full max-w-5xl px-6 py-10 font-sans">
+      <main className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-6 font-sans">
         <p className="rounded-lg border border-loss/40 bg-card px-4 py-2.5 text-sm text-loss">
           Position data unavailable (worker returned {status}).
         </p>
@@ -63,7 +63,7 @@ export default async function PositionPage({
   const day = Number(detail.day_change_usd);
 
   return (
-    <main className="mx-auto flex w-full max-w-5xl flex-col gap-10 px-6 py-10 font-sans">
+    <main className="mx-auto flex w-full max-w-5xl flex-col gap-10 px-4 py-10 sm:px-6 font-sans">
       <div>
         <Link
           href="/"
@@ -109,6 +109,9 @@ export default async function PositionPage({
 
       <section aria-label="Per-account breakdown">
         <h2 className="micro-label mb-3">Accounts</h2>
+        {/* Six columns overflow a phone; scroll the table, not the page. */}
+        <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+        <div className="min-w-[34rem]">
         <div className="grid grid-cols-[repeat(6,minmax(5rem,1fr))] gap-2 border-b border-hairline pb-2">
           {["Broker", "Account", "Qty", "Avg cost", "Market value", "Unrealized P/L"].map(
             (h, i) => (
@@ -148,6 +151,8 @@ export default async function PositionPage({
             );
           })}
         </ul>
+        </div>
+        </div>
       </section>
 
       {canRead(role) ? (

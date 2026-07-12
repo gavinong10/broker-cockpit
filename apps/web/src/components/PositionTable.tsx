@@ -41,6 +41,9 @@ export default function PositionTable({
   return (
     <section aria-label="Positions">
       <h2 className="micro-label mb-3">Positions</h2>
+      {/* Many numeric columns overflow a phone; scroll the TABLE, not the page. */}
+      <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+      <div className="min-w-[34rem]">
       <div className={`${GRID} border-b border-hairline pb-2`}>
         {["Symbol", "Qty", "Last price", "Day change", "Market value", "Unrealized P/L"].map(
           (h, i) => (
@@ -120,6 +123,8 @@ export default function PositionTable({
           );
         })}
       </ul>
+      </div>
+      </div>
     </section>
   );
 }

@@ -18,7 +18,7 @@ export default async function AdminPage() {
     return (
       <>
         <SiteHeader active="/admin" />
-        <main className="mx-auto flex w-full max-w-2xl flex-col gap-10 px-6 py-10 font-sans">
+        <main className="mx-auto flex w-full max-w-2xl flex-col gap-10 px-4 py-10 sm:px-6 font-sans">
           <p className="text-sm text-ink-2">This page is owner-only.</p>
         </main>
       </>
@@ -36,7 +36,7 @@ export default async function AdminPage() {
   return (
     <>
       <SiteHeader active="/admin" />
-      <main className="mx-auto flex w-full max-w-2xl flex-col gap-10 px-6 py-10 font-sans">
+      <main className="mx-auto flex w-full max-w-2xl flex-col gap-10 px-4 py-10 sm:px-6 font-sans">
         <div>
           <h1 className="text-xl font-semibold text-ink">Users</h1>
           <p className="mt-1 text-sm text-ink-2">

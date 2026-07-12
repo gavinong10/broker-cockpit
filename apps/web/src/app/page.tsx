@@ -73,25 +73,25 @@ export default async function Home() {
     status === 502 && (body as { error?: string } | null)?.error === "rh_auth";
   const portfolio = status === 200 ? (body as Portfolio) : null;
 
+  async function handleSignOut() {
+    "use server";
+    await signOut({ redirectTo: "/login" });
+  }
+
   return (
     <>
       {/* Slim sticky nav on a blurred surface. */}
       <header className="sticky top-0 z-10 border-b border-hairline bg-surface/80 backdrop-blur">
-        <div className="mx-auto flex h-12 w-full max-w-5xl items-center justify-between px-6">
-          <div className="flex items-center gap-6">
-            <span className="text-sm font-semibold text-ink">broker-cockpit</span>
-            <NavTabs active="/" />
-          </div>
-          <div className="flex items-center gap-4 text-[13px] text-ink-2">
-            <span className="hidden sm:inline">
+        <div className="mx-auto flex h-12 w-full max-w-5xl items-center gap-4 px-4 sm:px-6">
+          <span className="text-sm font-semibold text-ink">broker-cockpit</span>
+          {/* NavTabs renders the desktop bar AND (below sm) the hamburger
+              dropdown; the sign-out action rides into the mobile drawer. */}
+          <NavTabs active="/" signOut={handleSignOut} />
+          <div className="ml-auto hidden items-center gap-4 text-[13px] text-ink-2 sm:flex">
+            <span>
               {email} ({role ?? "no role"})
             </span>
-            <form
-              action={async () => {
-                "use server";
-                await signOut({ redirectTo: "/login" });
-              }}
-            >
+            <form action={handleSignOut}>
               {/* Quiet text-link sign-out. */}
               <button
                 type="submit"
@@ -104,7 +104,7 @@ export default async function Home() {
         </div>
       </header>
 
-      <main className="mx-auto flex w-full max-w-5xl flex-col gap-10 px-6 py-10 font-sans">
+      <main className="mx-auto flex w-full max-w-5xl flex-col gap-10 px-4 py-10 font-sans sm:px-6">
         {rhAuthExpired && (
           <Banner tone="red">
             Robinhood session expired — use the &ldquo;Refresh Robinhood

@@ -28,7 +28,7 @@ export default async function ExposurePage({
   return (
     <>
       <SiteHeader active="/exposure" />
-      <main className="mx-auto flex w-full max-w-5xl flex-col gap-10 px-6 py-10 font-sans">
+      <main className="mx-auto flex w-full max-w-5xl flex-col gap-10 px-4 py-10 sm:px-6 font-sans">
         {rows === null ? (
           <p className="text-sm text-ink-2">
             Exposure data unavailable (worker returned {status}).
