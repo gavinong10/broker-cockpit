@@ -58,7 +58,11 @@ export type PositionDetail = Omit<PortfolioPosition, "weight_pct" | "brokers"> &
   accounts: PositionAccountRow[];
 };
 
-export type SnapshotPoint = { taken_on: string; total_value_usd: string };
+export type SnapshotPoint = {
+  taken_on: string;
+  total_value_usd: string;
+  source?: string; // "observed" (default) | "backfill_rh"
+};
 
 // --- Baskets (GET /internal/baskets, GET /internal/baskets/{slug}) ---
 

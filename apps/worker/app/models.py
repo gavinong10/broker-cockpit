@@ -74,6 +74,7 @@ class Snapshot(Base):
     total_value_usd: Mapped[Decimal] = mapped_column(Numeric(18, 2))
     cash_usd: Mapped[Decimal] = mapped_column(Numeric(18, 2))
     per_account: Mapped[dict] = mapped_column(JSONB, default=dict)
+    source: Mapped[str] = mapped_column(String(16), server_default="observed")  # observed | backfill_rh
 
 class CashFlow(Base):
     __tablename__ = "cash_flows"

@@ -11,6 +11,12 @@
 
 import { display } from "@/lib/format";
 import type { SnapshotPoint } from "@/lib/portfolio";
+import {
+  depositsBaseline,
+  hasBackfill,
+  performanceExDeposits,
+  type FlowPoint,
+} from "@/lib/valueHistory";
 
 const W = 640;
 const H = 200;
@@ -28,10 +34,12 @@ export default function ValueChart({
   snapshots,
   masked,
   title = "Portfolio value over time",
+  flows = [],
 }: {
   snapshots: SnapshotPoint[];
   masked: boolean;
   title?: string;
+  flows?: FlowPoint[];
 }) {
   const note = (text: string) => <p className="text-sm text-ink-2">{text}</p>;
 
@@ -47,8 +55,11 @@ export default function ValueChart({
   }
 
   const values = snapshots.map((s) => Number(s.total_value_usd));
-  const lo = Math.min(...values);
-  const hi = Math.max(...values);
+  const depBaseline = depositsBaseline(snapshots, flows);
+  const perf = performanceExDeposits(snapshots, flows);
+  const scaleValues = depBaseline === null ? values : [...values, ...depBaseline];
+  const lo = Math.min(...scaleValues);
+  const hi = Math.max(...scaleValues);
   const span = hi - lo || Math.abs(hi) * 0.02 || 1; // flat series: give it air
   const yMin = lo - span * 0.15;
   const yMax = hi + span * 0.15;
@@ -69,6 +80,16 @@ export default function ValueChart({
   const linePath = pts.map(([px, py], i) => `${i === 0 ? "M" : "L"}${px.toFixed(1)},${py.toFixed(1)}`).join(" ");
   const baseline = H - PAD.bottom;
   const areaPath = `${linePath} L${pts[pts.length - 1][0].toFixed(1)},${baseline} L${pts[0][0].toFixed(1)},${baseline} Z`;
+  // Deposits baseline as a stepped dashed line: flows land between snapshot
+  // days, so hold each level then step at the next point.
+  const depPath = depBaseline === null ? null : depBaseline
+    .map((v, i) => {
+      const px = x(i).toFixed(1);
+      const py = y(v).toFixed(1);
+      if (i === 0) return `M${px},${py}`;
+      return `L${px},${y(depBaseline[i - 1]).toFixed(1)} L${px},${py}`;
+    })
+    .join(" ");
 
   const last = snapshots.length - 1;
   const minIdx = values.indexOf(lo);
@@ -173,9 +194,38 @@ export default function ValueChart({
             </title>
           </circle>
         ))}
+        {depPath !== null && (
+          <path
+            d={depPath}
+            fill="none"
+            stroke="var(--color-ink-3)"
+            strokeWidth="1.5"
+            strokeDasharray="4 4"
+          >
+            <title>Net deposits baseline</title>
+          </path>
+        )}
       </svg>
       {snapshots.length === 1 &&
         note("One snapshot so far — history accumulates from go-live, one point per day.")}
+      {perf !== null && (
+        <p className="mt-2 text-[13px] tabular-nums text-ink-2">
+          Performance excl. deposits:{" "}
+          <span className={perf.usd >= 0 ? "text-gain" : "text-loss"}>
+            {masked
+              ? "•••"
+              : `${perf.usd >= 0 ? "+" : "-"}$${Math.abs(perf.usd).toLocaleString(undefined, { maximumFractionDigits: 0 })}`}{" "}
+            ({perf.pct >= 0 ? "+" : ""}
+            {perf.pct.toFixed(2)}%)
+          </span>{" "}
+          <span className="text-ink-3">— dashed line = deposits baseline</span>
+        </p>
+      )}
+      {hasBackfill(snapshots) && (
+        <p className="mt-1 text-xs text-ink-3">
+          Includes backfilled history (Robinhood equity records, pre go-live).
+        </p>
+      )}
     </section>
   );
 }
