@@ -19,6 +19,7 @@ router = APIRouter(prefix="/internal", dependencies=[Depends(require_internal)])
 
 _CENT = Decimal("0.01")
 _PCT = Decimal("0.0001")
+_PCT2 = Decimal("0.01")   # 2-dp percentages (cumulative return)
 _ZERO = Decimal("0")
 
 SNAPSHOT_DAYS_DEFAULT = 90
@@ -349,6 +350,19 @@ def performance_endpoint(period: str = Query(default="inception")):
         {"date": d.isoformat(), "value_usd": str(v)}
         for d, v in performance.net_contributions_series(all_flows)]
 
+    # Series + current value are period-independent and always present (even for
+    # an "unavailable" sub-period, so the chart still renders under every toggle).
+    base = {
+        "period": period,
+        "current_value_usd": str(current_value.quantize(_CENT)),
+        "value_series": value_series,
+        "contributions_series": contributions_series,
+    }
+
+    def _unavailable():
+        return {**base, "available": False,
+                "reason": "insufficient history for this period"}
+
     caveats = [
         "Daily value before go-live (2026-07-11) is reconstructed from Robinhood "
         "records and is estimated; the time-weighted return derives from it and "
@@ -359,54 +373,76 @@ def performance_endpoint(period: str = Query(default="inception")):
     daily_pairs = [(r.taken_on, Decimal(r.total_value_usd)) for r in snap_rows]
 
     if start is None:
-        # Inception / all: real flows only + today's exact value. Nothing rests
-        # on an estimated boundary -> solid.
+        # Inception / all: real flows only + today's exact value. Nothing rests on
+        # an estimated boundary -> solid, and the annualized IRR is meaningful over
+        # the full account life, so it is the headline here. ALWAYS available.
         period_real_flows = all_flows
         pnl_flows = all_flows
         twr_daily = daily_pairs
+        start_value = Decimal("0")
         solid = True
+        boundary_estimated = False
+        headline_metric = "annualized"
         caveats.append(
             "Dollar P&L and money-weighted return use only dated cash flows and "
             "today's exact value.")
     else:
-        # Sub-period: value at the period boundary seeds a synthetic 'deposit',
-        # sourced from a snapshot (estimated pre go-live) -> solid:false.
+        # Sub-period: opening value at the boundary seeds a synthetic 'deposit'.
+        # A missing boundary snapshot -> not enough history -> unavailable (never
+        # a blank/NaN/wrong number). The annualized IRR distorts badly over short
+        # windows, so the CUMULATIVE (non-annualized) period return is the headline
+        # and the annualized figure rides along as a secondary value.
         boundary = None
         for r in snap_rows:
             if r.taken_on <= start:
                 boundary = r
             else:
                 break
+        if boundary is None:
+            return _unavailable()
+        start_value = Decimal(boundary.total_value_usd)
         period_real_flows = [f for f in all_flows
-                             if (boundary.taken_on if boundary else start) < f[0] <= end_date]
-        if boundary is not None:
-            v0 = Decimal(boundary.total_value_usd)
-            pnl_flows = [(boundary.taken_on, -v0)] + period_real_flows
-            twr_daily = [p for p in daily_pairs if p[0] >= boundary.taken_on]
-            if _snapshot_estimated(boundary.source, boundary.per_account):
-                caveats.append(
-                    f"Period opening value ({boundary.taken_on.isoformat()}) is an "
-                    "estimated pre-go-live snapshot.")
-        else:
-            # Period predates all snapshots -> behaves like inception within data.
-            pnl_flows = period_real_flows
-            twr_daily = daily_pairs
+                             if boundary.taken_on < f[0] <= end_date]
+        pnl_flows = [(boundary.taken_on, -start_value)] + period_real_flows
+        twr_daily = [p for p in daily_pairs if p[0] >= boundary.taken_on]
         solid = False
+        boundary_estimated = _snapshot_estimated(boundary.source, boundary.per_account)
+        headline_metric = "cumulative"
+        if boundary_estimated:
+            caveats.append(
+                f"Period opening value ({boundary.taken_on.isoformat()}) is an "
+                "estimated pre-go-live snapshot.")
 
     mwr = performance.money_weighted_return(pnl_flows, current_value, end_date)
+    # A sub-period whose XIRR can't bracket a root (sign degeneracy / zero span)
+    # is reported unavailable rather than shown with a misleading number. Since-
+    # inception is never gated on this (it must always be available).
+    if start is not None and mwr is None:
+        return _unavailable()
+
     tw = performance.twr(twr_daily, period_real_flows)
+    period_pnl = performance.dollar_pnl(pnl_flows, current_value)
+
+    # Cumulative (non-annualized) period return = period P&L over capital deployed
+    # (opening value + gross deposits made during the period). Deposits are the
+    # investor-convention NEGATIVE flows, so their magnitude is -amount.
+    deposits_in = sum((-amt for _, amt in period_real_flows if amt < 0), Decimal("0"))
+    capital_base = start_value + deposits_in
+    cumulative = (period_pnl / capital_base * 100).quantize(_PCT2) \
+        if capital_base > 0 else None
 
     return {
-        "period": period,
-        "mwr_pct": _pct_str(mwr),
+        **base,
+        "available": True,
+        "headline_metric": headline_metric,
+        "mwr_annualized_pct": _pct_str(mwr),
+        "cumulative_return_pct": None if cumulative is None else str(cumulative),
         "twr_pct": _pct_str(tw),
-        "dollar_pnl_usd": str(performance.dollar_pnl(pnl_flows, current_value).quantize(_CENT)),
+        "dollar_pnl_usd": str(period_pnl.quantize(_CENT)),
         "net_contributions_usd": str(
             performance.net_contributions(period_real_flows).quantize(_CENT)),
-        "current_value_usd": str(current_value.quantize(_CENT)),
-        "value_series": value_series,
-        "contributions_series": contributions_series,
         "solid": solid,
+        "boundary_estimated": boundary_estimated,
         "caveats": caveats,
     }
 

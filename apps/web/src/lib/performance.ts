@@ -14,17 +14,26 @@ export type PerfContribPoint = {
   value_usd: string;
 };
 
+// Series + current value ship on every response (even an unavailable period,
+// so the chart still renders). Headline metrics are present only when
+// `available` is true.
 export type Performance = {
   period: string;
-  mwr_pct: string | null;
-  twr_pct: string | null;
-  dollar_pnl_usd: string;
-  net_contributions_usd: string;
   current_value_usd: string;
   value_series: PerfValuePoint[];
   contributions_series: PerfContribPoint[];
-  solid: boolean;
-  caveats: string[];
+  available: boolean;
+  reason?: string; // present when available === false
+  // present when available === true:
+  headline_metric?: "annualized" | "cumulative";
+  mwr_annualized_pct?: string | null;
+  cumulative_return_pct?: string | null;
+  twr_pct?: string | null;
+  dollar_pnl_usd?: string;
+  net_contributions_usd?: string;
+  solid?: boolean;
+  boundary_estimated?: boolean;
+  caveats?: string[];
 };
 
 export type Period = "inception" | "1y" | "ytd";

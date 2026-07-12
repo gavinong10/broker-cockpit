@@ -49,11 +49,13 @@ function Stat({
   children,
   tone,
   big = false,
+  sub,
 }: {
   label: string;
   children: React.ReactNode;
   tone?: "gain" | "loss";
   big?: boolean;
+  sub?: React.ReactNode;
 }) {
   const color =
     tone === "gain" ? "text-gain" : tone === "loss" ? "text-loss" : "text-ink";
@@ -67,6 +69,7 @@ function Stat({
       >
         {children}
       </p>
+      {sub && <p className="mt-0.5 text-xs tabular-nums text-ink-3">{sub}</p>}
     </div>
   );
 }
@@ -271,9 +274,6 @@ export default function PerformanceSection({
 }) {
   const [period, setPeriod] = useState<Period>("inception");
   const perf = data[period];
-  const pnl = Number(perf.dollar_pnl_usd);
-  const pnlTone = pnl >= 0 ? "gain" : "loss";
-  const pnlSign = pnl >= 0 ? "+" : "-";
 
   return (
     <section aria-label="Performance">
@@ -298,22 +298,19 @@ export default function PerformanceSection({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
-        <Stat label="Dollar P&L" tone={pnlTone} big>
-          {masked ? "•••" : `${pnlSign}${usd(Math.abs(pnl))}`}
-        </Stat>
-        <Stat label="Money-weighted return" tone={pnl >= 0 ? "gain" : "loss"}>
-          {signedPct(perf.mwr_pct)}
-        </Stat>
-        <Stat label="Net contributions">{display(perf.net_contributions_usd, masked)}</Stat>
-        <Stat label="Time-weighted (est.)">{signedPct(perf.twr_pct)}</Stat>
-      </div>
+      {perf.available ? (
+        <Headline perf={perf} masked={masked} />
+      ) : (
+        <p className="rounded-lg bg-card px-4 py-6 text-center text-sm text-ink-2">
+          Not enough history yet for this period.
+        </p>
+      )}
 
       <div className="mt-6">
         <Chart perf={perf} masked={masked} />
       </div>
 
-      {perf.caveats.length > 0 && (
+      {perf.available && perf.caveats && perf.caveats.length > 0 && (
         <ul className="mt-3 space-y-0.5 text-xs text-ink-3">
           {perf.caveats.map((c, i) => (
             <li key={i}>• {c}</li>
@@ -321,5 +318,40 @@ export default function PerformanceSection({
         </ul>
       )}
     </section>
+  );
+}
+
+function Headline({ perf, masked }: { perf: Performance; masked: boolean }) {
+  const pnl = Number(perf.dollar_pnl_usd ?? 0);
+  const pnlTone = pnl >= 0 ? "gain" : "loss";
+  const pnlSign = pnl >= 0 ? "+" : "-";
+
+  // Annualized is the headline only for since-inception (meaningful over the
+  // full life); short windows lead with the cumulative period return, and the
+  // annualized figure rides along as a small secondary value.
+  const cumulative = perf.headline_metric === "cumulative";
+  const primaryPct = cumulative ? perf.cumulative_return_pct : perf.mwr_annualized_pct;
+  const primaryLabel = cumulative ? "Return (this period)" : "Money-weighted return";
+  const secondary =
+    cumulative && perf.mwr_annualized_pct != null
+      ? `${signedPct(perf.mwr_annualized_pct)} annualized`
+      : !cumulative && perf.cumulative_return_pct != null
+        ? `${signedPct(perf.cumulative_return_pct)} cumulative`
+        : undefined;
+  const retTone = (primaryPct != null ? Number(primaryPct) : 0) >= 0 ? "gain" : "loss";
+
+  return (
+    <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
+      <Stat label="Dollar P&L" tone={pnlTone} big>
+        {masked ? "•••" : `${pnlSign}${usd(Math.abs(pnl))}`}
+      </Stat>
+      <Stat label={primaryLabel} tone={retTone} sub={secondary}>
+        {signedPct(primaryPct ?? null)}
+      </Stat>
+      <Stat label="Net contributions">
+        {display(perf.net_contributions_usd ?? "0", masked)}
+      </Stat>
+      <Stat label="Time-weighted (est.)">{signedPct(perf.twr_pct ?? null)}</Stat>
+    </div>
   );
 }
