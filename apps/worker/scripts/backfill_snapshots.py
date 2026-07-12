@@ -651,10 +651,16 @@ def compute(engine: Engine, from_cache: bool) -> dict:
             "per_account": per_account,
         })
 
-    # cash_flows from bank transfers (dedup on transfer id)
+    # cash_flows from completed bank transfers. CRITICAL: this MUST share the
+    # idempotency key used by app.value_history.sync_cash_flows ("rh-ach:{id}"),
+    # which already runs on the daily snapshot cadence and has populated these
+    # rows. A different source_ref prefix would slip past the ON CONFLICT dedup
+    # and DOUBLE-count every deposit/withdrawal — silently wrecking net
+    # contributions and dollar P&L. Match its filter (completed only) and its
+    # ref exactly so this write is a safe no-op against already-synced rows.
     cash_flow_rows: list[dict] = []
     for t in raw["transfers"]:
-        if (t.get("state") or "").lower() in _TRANSFER_DEAD:
+        if (t.get("state") or "").lower() != "completed":
             continue
         tid = t.get("id")
         d = _dt_date(t.get("created_at"))
@@ -670,7 +676,7 @@ def compute(engine: Engine, from_cache: bool) -> dict:
             "occurred_at": datetime(d.year, d.month, d.day, tzinfo=timezone.utc),
             "kind": kind,
             "amount_usd": signed.quantize(_CENT),
-            "source_ref": f"rh-transfer-{tid}",
+            "source_ref": f"rh-ach:{tid}",
         })
 
     return {

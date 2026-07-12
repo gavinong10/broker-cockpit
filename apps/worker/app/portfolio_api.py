@@ -5,12 +5,13 @@ strings. Positions are aggregated across brokers per instrument, with a
 per-broker breakdown. Staleness thresholds are imported from app.scheduler
 (the writer side) — never re-derived here.
 """
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import text
 
+from app import performance
 from app.internal_auth import require_internal
 from app.scheduler import is_stale
 
@@ -275,6 +276,139 @@ def snapshots_backfill(span: str = Query(default="year")):
 def cashflows_sync():
     from app.value_history import sync_cash_flows
     return sync_cash_flows(_get_engine())
+
+
+# --- flow-adjusted performance (design spec §4.1) -----------------------------
+
+_PERIODS = ("inception", "1y", "ytd", "all")
+
+
+def _snapshot_estimated(source: str | None, per_account) -> bool:
+    """A snapshot is estimated if it's a backfill row, or any per-account entry
+    carries the estimated flag written by scripts/backfill_snapshots.py."""
+    if source and source != "observed":
+        return True
+    if isinstance(per_account, dict):
+        return any(isinstance(v, dict) and v.get("estimated") is True
+                   for v in per_account.values())
+    return False
+
+
+def _pct_str(rate: float | None):
+    """Annualized decimal rate -> percent string (2 dp), or None."""
+    return None if rate is None else str(round(rate * 100, 2))
+
+
+def _period_start(period: str, end_date: date) -> date | None:
+    if period == "1y":
+        return end_date - timedelta(days=365)
+    if period == "ytd":
+        return date(end_date.year, 1, 1)
+    return None  # inception / all -> account life, no boundary
+
+
+@router.get("/performance")
+def performance_endpoint(period: str = Query(default="inception")):
+    """Flow-adjusted account performance for the given period.
+
+    Since-inception dollar P&L and money-weighted return use ONLY dated external
+    flows + today's exact (observed) value -> solid:true. The time-weighted
+    return and any sub-period boundary lean on the reconstructed (estimated)
+    daily series -> flagged in caveats (and solid:false for sub-periods).
+    """
+    if period not in _PERIODS:
+        raise HTTPException(status_code=400, detail="bad period")
+
+    with _get_engine().connect() as conn:
+        flow_rows = conn.execute(text(
+            "SELECT CAST(occurred_at AS date) AS d, amount_usd "
+            "FROM cash_flows ORDER BY occurred_at, id")).all()
+        snap_rows = conn.execute(text(
+            "SELECT taken_on, total_value_usd, source, per_account "
+            "FROM snapshots ORDER BY taken_on ASC")).all()
+
+    if not snap_rows:
+        raise HTTPException(status_code=409, detail="no snapshots yet")
+
+    # Investor-convention flows (deposit negative, withdrawal positive): the DB
+    # stores +deposit / -withdrawal, so a single negation crosses the boundary.
+    all_flows: list[tuple[date, Decimal]] = [
+        (r.d, -Decimal(r.amount_usd)) for r in flow_rows]
+
+    # Terminal = the latest (observed) snapshot: today's exact value.
+    terminal = snap_rows[-1]
+    end_date = terminal.taken_on
+    current_value = Decimal(terminal.total_value_usd)
+
+    value_series = [{
+        "date": r.taken_on.isoformat(),
+        "value_usd": str(Decimal(r.total_value_usd)),
+        "estimated": _snapshot_estimated(r.source, r.per_account),
+    } for r in snap_rows]
+    contributions_series = [
+        {"date": d.isoformat(), "value_usd": str(v)}
+        for d, v in performance.net_contributions_series(all_flows)]
+
+    caveats = [
+        "Daily value before go-live (2026-07-11) is reconstructed from Robinhood "
+        "records and is estimated; the time-weighted return derives from it and "
+        "is therefore estimated."
+    ]
+
+    start = _period_start(period, end_date)
+    daily_pairs = [(r.taken_on, Decimal(r.total_value_usd)) for r in snap_rows]
+
+    if start is None:
+        # Inception / all: real flows only + today's exact value. Nothing rests
+        # on an estimated boundary -> solid.
+        period_real_flows = all_flows
+        pnl_flows = all_flows
+        twr_daily = daily_pairs
+        solid = True
+        caveats.append(
+            "Dollar P&L and money-weighted return use only dated cash flows and "
+            "today's exact value.")
+    else:
+        # Sub-period: value at the period boundary seeds a synthetic 'deposit',
+        # sourced from a snapshot (estimated pre go-live) -> solid:false.
+        boundary = None
+        for r in snap_rows:
+            if r.taken_on <= start:
+                boundary = r
+            else:
+                break
+        period_real_flows = [f for f in all_flows
+                             if (boundary.taken_on if boundary else start) < f[0] <= end_date]
+        if boundary is not None:
+            v0 = Decimal(boundary.total_value_usd)
+            pnl_flows = [(boundary.taken_on, -v0)] + period_real_flows
+            twr_daily = [p for p in daily_pairs if p[0] >= boundary.taken_on]
+            if _snapshot_estimated(boundary.source, boundary.per_account):
+                caveats.append(
+                    f"Period opening value ({boundary.taken_on.isoformat()}) is an "
+                    "estimated pre-go-live snapshot.")
+        else:
+            # Period predates all snapshots -> behaves like inception within data.
+            pnl_flows = period_real_flows
+            twr_daily = daily_pairs
+        solid = False
+
+    mwr = performance.money_weighted_return(pnl_flows, current_value, end_date)
+    tw = performance.twr(twr_daily, period_real_flows)
+
+    return {
+        "period": period,
+        "mwr_pct": _pct_str(mwr),
+        "twr_pct": _pct_str(tw),
+        "dollar_pnl_usd": str(performance.dollar_pnl(pnl_flows, current_value).quantize(_CENT)),
+        "net_contributions_usd": str(
+            performance.net_contributions(period_real_flows).quantize(_CENT)),
+        "current_value_usd": str(current_value.quantize(_CENT)),
+        "value_series": value_series,
+        "contributions_series": contributions_series,
+        "solid": solid,
+        "caveats": caveats,
+    }
 
 
 @router.get("/exposure")

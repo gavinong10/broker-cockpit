@@ -6,15 +6,14 @@ import {
   type Basket,
   type Portfolio,
   type PortfolioAccount,
-  type SnapshotPoint,
 } from "@/lib/portfolio";
 import BasketCards from "@/components/BasketCards";
 import NavTabs from "@/components/NavTabs";
 import PortfolioHeader from "@/components/PortfolioHeader";
 import AllocationBar from "@/components/AllocationBar";
 import PositionTable from "@/components/PositionTable";
-import ValueChart from "@/components/ValueChart";
-import type { FlowPoint } from "@/lib/valueHistory";
+import PerformanceSection from "@/components/PerformanceSection";
+import type { Performance, Period } from "@/lib/performance";
 import AsOfStamp from "@/components/AsOfStamp";
 import RhRefreshButton from "@/components/RhRefreshButton";
 
@@ -58,18 +57,24 @@ export default async function Home() {
   // (owner tools hidden) — server actions still enforce the real role.
   const { email, role, masked } = await getViewerContext();
 
-  const [{ status, body }, snapshotsRes, basketsRes, flowsRes] = await Promise.all([
-    workerFetchRaw("/internal/portfolio"),
-    workerFetchRaw("/internal/snapshots?days=90"),
-    workerFetchRaw("/internal/baskets"),
-    workerFetchRaw("/internal/cashflows"),
-  ]);
-  const snapshots =
-    snapshotsRes.status === 200 ? (snapshotsRes.body as SnapshotPoint[]) : null;
-  const flows =
-    flowsRes.status === 200 && Array.isArray(flowsRes.body)
-      ? (flowsRes.body as FlowPoint[])
-      : [];
+  const [{ status, body }, basketsRes, perfInception, perf1y, perfYtd] =
+    await Promise.all([
+      workerFetchRaw("/internal/portfolio"),
+      workerFetchRaw("/internal/baskets"),
+      workerFetchRaw("/internal/performance?period=inception"),
+      workerFetchRaw("/internal/performance?period=1y"),
+      workerFetchRaw("/internal/performance?period=ytd"),
+    ]);
+  // Performance section renders only when all three periods resolve (a worker
+  // that predates the endpoint, or one with no snapshots yet, hides it).
+  const performance: Record<Period, Performance> | null =
+    perfInception.status === 200 && perf1y.status === 200 && perfYtd.status === 200
+      ? {
+          inception: perfInception.body as Performance,
+          "1y": perf1y.body as Performance,
+          ytd: perfYtd.body as Performance,
+        }
+      : null;
   // Non-200 (e.g. a worker that predates baskets) silently hides the section.
   const baskets =
     basketsRes.status === 200 && Array.isArray(basketsRes.body)
@@ -151,8 +156,8 @@ export default async function Home() {
 
         {portfolio && (
           <>
-            {snapshots !== null && (
-              <ValueChart snapshots={snapshots} masked={masked} flows={flows} />
+            {performance !== null && (
+              <PerformanceSection data={performance} masked={masked} />
             )}
 
             <AllocationBar
