@@ -14,6 +14,7 @@ import PortfolioHeader from "@/components/PortfolioHeader";
 import AllocationBar from "@/components/AllocationBar";
 import PositionTable from "@/components/PositionTable";
 import ValueChart from "@/components/ValueChart";
+import type { FlowPoint } from "@/lib/valueHistory";
 import AsOfStamp from "@/components/AsOfStamp";
 import RhRefreshButton from "@/components/RhRefreshButton";
 
@@ -57,13 +58,18 @@ export default async function Home() {
   // (owner tools hidden) — server actions still enforce the real role.
   const { email, role, masked } = await getViewerContext();
 
-  const [{ status, body }, snapshotsRes, basketsRes] = await Promise.all([
+  const [{ status, body }, snapshotsRes, basketsRes, flowsRes] = await Promise.all([
     workerFetchRaw("/internal/portfolio"),
     workerFetchRaw("/internal/snapshots?days=90"),
     workerFetchRaw("/internal/baskets"),
+    workerFetchRaw("/internal/cashflows"),
   ]);
   const snapshots =
     snapshotsRes.status === 200 ? (snapshotsRes.body as SnapshotPoint[]) : null;
+  const flows =
+    flowsRes.status === 200 && Array.isArray(flowsRes.body)
+      ? (flowsRes.body as FlowPoint[])
+      : [];
   // Non-200 (e.g. a worker that predates baskets) silently hides the section.
   const baskets =
     basketsRes.status === 200 && Array.isArray(basketsRes.body)
@@ -143,7 +149,9 @@ export default async function Home() {
 
         {portfolio && (
           <>
-            {snapshots !== null && <ValueChart snapshots={snapshots} masked={masked} />}
+            {snapshots !== null && (
+              <ValueChart snapshots={snapshots} masked={masked} flows={flows} />
+            )}
 
             <AllocationBar
               items={[

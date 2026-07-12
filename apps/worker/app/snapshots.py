@@ -61,7 +61,17 @@ def compute_snapshot(engine: Engine) -> dict:
 
 
 def record_snapshot(engine: Engine) -> dict:
-    """Compute and upsert today's snapshot (idempotent on taken_on)."""
+    """Compute and upsert today's snapshot (idempotent on taken_on).
+
+    Bank-transfer sync rides the same daily cadence, guarded: cash-flow
+    trouble must never block the snapshot itself."""
+    try:
+        from app.value_history import sync_cash_flows
+        flows = sync_cash_flows(engine)
+        if flows.get("inserted"):
+            log.info("cash flows synced: %s", flows)
+    except Exception as exc:
+        log.warning("cash-flow sync failed: %s: %s", exc.__class__.__name__, exc)
     snap = compute_snapshot(engine)
     with engine.begin() as conn:
         conn.execute(text(

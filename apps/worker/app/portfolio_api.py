@@ -239,11 +239,42 @@ def snapshots(days: int = Query(default=SNAPSHOT_DAYS_DEFAULT, ge=1)):
     days = min(days, SNAPSHOT_DAYS_CAP)
     with _get_engine().connect() as conn:
         rows = conn.execute(text(
-            "SELECT taken_on, total_value_usd FROM snapshots "
+            "SELECT taken_on, total_value_usd, source FROM snapshots "
             "WHERE taken_on >= CURRENT_DATE - CAST(:days AS integer) "
             "ORDER BY taken_on ASC"), {"days": days}).all()
     return [{"taken_on": r.taken_on.isoformat(),
-             "total_value_usd": str(r.total_value_usd)} for r in rows]
+             "total_value_usd": str(r.total_value_usd),
+             "source": r.source} for r in rows]
+
+
+@router.get("/cashflows")
+def cashflows(days: int = Query(default=SNAPSHOT_DAYS_DEFAULT, ge=1)):
+    """Per-day net external flows (deposits +, withdrawals -), for the
+    deposits-baseline overlay on the value chart."""
+    days = min(days, SNAPSHOT_DAYS_CAP)
+    with _get_engine().connect() as conn:
+        rows = conn.execute(text(
+            "SELECT CAST(occurred_at AS date) AS occurred_on, "
+            "SUM(amount_usd) AS net_usd FROM cash_flows "
+            "WHERE occurred_at >= CURRENT_DATE - CAST(:days AS integer) "
+            "GROUP BY CAST(occurred_at AS date) ORDER BY occurred_on ASC"),
+            {"days": days}).all()
+    return [{"occurred_on": r.occurred_on.isoformat(),
+             "net_usd": str(r.net_usd)} for r in rows]
+
+
+@router.post("/snapshots/backfill")
+def snapshots_backfill(span: str = Query(default="year")):
+    from app.value_history import backfill_snapshots
+    if span not in ("week", "month", "3month", "year", "5year"):
+        raise HTTPException(status_code=400, detail="bad span")
+    return backfill_snapshots(_get_engine(), span=span)
+
+
+@router.post("/cashflows/sync")
+def cashflows_sync():
+    from app.value_history import sync_cash_flows
+    return sync_cash_flows(_get_engine())
 
 
 @router.get("/exposure")
