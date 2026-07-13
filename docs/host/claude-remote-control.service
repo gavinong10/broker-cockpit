@@ -1,0 +1,16 @@
+[Unit]
+Description=Claude Code Remote Control (broker-cockpit prod host)
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/broker-cockpit
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+ExecStart=/usr/local/bin/claude remote-control --name "broker-cockpit-prod"
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
