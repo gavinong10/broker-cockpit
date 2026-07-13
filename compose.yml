@@ -32,11 +32,18 @@ services:
   backup:
     build: infra/backup
     env_file: .env
+    # Restart policy is load-bearing: the previous cron daemon crashed with
+    # "setpgid: Operation not permitted" and with no restart policy the
+    # container stayed Exited, so backups silently stopped for days. The
+    # scheduler is now a foreground shell loop (infra/backup/entrypoint.sh),
+    # and unless-stopped brings it back if it ever dies or the host reboots.
+    restart: unless-stopped
     environment:
       PGPASSWORD: "${POSTGRES_PASSWORD}"
       GCS_KEY_FILE: /secrets/gcs-key.json
     volumes:
       - ./secrets/gcs-backup-key.json:/secrets/gcs-key.json:ro
+      - backup_state:/var/lib/backup   # persisted heartbeat markers
     depends_on: [postgres]
   web:
     build: apps/web
@@ -48,3 +55,4 @@ services:
     depends_on: [worker]
 volumes:
   pgdata:
+  backup_state:
