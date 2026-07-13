@@ -73,12 +73,16 @@ check_staleness() {
 # ---------------------------------------------------------------------------
 run_backup() {
     echo "=== backup run $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
-    if /usr/local/bin/backup.sh; then
+    # Capture backup.sh's real exit status directly. (Do NOT put `rc=$?` after
+    # an `if backup.sh; then...; fi`: with no else taken, $? is the if's own
+    # status = 0, which would mask the true failure code in the alert.)
+    /usr/local/bin/backup.sh
+    rc=$?
+    if [ "$rc" -eq 0 ]; then
         date -u +%Y-%m-%dT%H:%M:%SZ > "${HEARTBEAT}.ok"
         echo "backup succeeded"
         return 0
     fi
-    rc=$?
     date -u +%Y-%m-%dT%H:%M:%SZ > "${HEARTBEAT}.fail"
     notify "❌ broker-cockpit backup FAILED (backup.sh exit ${rc}) — check the backup container logs now"
     return 1
