@@ -1,3 +1,14 @@
 {$COCKPIT_DOMAIN} {
     reverse_proxy web:3000
 }
+
+# beta-platform: TLS termination only. One wildcard cert via Cloudflare DNS-01
+# (the plugin in our custom image). ALL beta routing/auth happens inside the
+# beta stack's own proxy (beta-proxy, on the shared external "edge" network) —
+# beta publishes never require touching this file again.
+{$BETA_DOMAIN}, *.{$BETA_DOMAIN} {
+    tls {
+        dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+    }
+    reverse_proxy beta-proxy:8080
+}

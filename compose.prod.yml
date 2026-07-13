@@ -9,15 +9,29 @@ services:
     # docker-published port. Reset it here so postgres is internal-only.
     ports: !reset []
   caddy:
-    image: caddy:2
+    # Custom build = stock caddy:2 + the cloudflare DNS plugin, needed for the
+    # *.beta wildcard cert (DNS-01). Cockpit's own cert flow (HTTP-01,
+    # grey-cloud DNS) is unchanged.
+    build: ./infra/caddy
     # Least privilege: caddy is the internet-facing container and needs only
-    # the domain — never the full .env (DB password, tokens, broker creds).
+    # the domains + the DNS-edit-scoped Cloudflare token — never the full .env
+    # (DB password, tokens, broker creds).
     environment:
       COCKPIT_DOMAIN: ${COCKPIT_DOMAIN}
+      BETA_DOMAIN: ${BETA_DOMAIN}
+      CLOUDFLARE_API_TOKEN: ${CLOUDFLARE_API_TOKEN}
     ports: ["80:80", "443:443"]
     volumes:
       - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
     depends_on: [web]
+    networks:
+      - default
+      - edge
 volumes:
   caddy_data:
+networks:
+  # Shared with the beta-platform stack (docker network create edge). Lets
+  # caddy reach beta-proxy without merging the two compose projects' networks.
+  edge:
+    external: true
