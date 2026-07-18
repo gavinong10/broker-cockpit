@@ -17,6 +17,6 @@
 # routing/auth happens inside the opencourt stack's own proxy on the shared
 # "edge" network (same pattern as beta) — opencourt deploys never touch
 # this file again.
-{$OPENCOURT_DOMAIN} {
+opencourt.gavinong.org {
     reverse_proxy opencourt-edge:8080
 }
