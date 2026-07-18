@@ -12,3 +12,11 @@
     }
     reverse_proxy beta-proxy:8080
 }
+
+# opencourt: TLS termination only (HTTP-01, grey-cloud A record). All
+# routing/auth happens inside the opencourt stack's own proxy on the shared
+# "edge" network (same pattern as beta) — opencourt deploys never touch
+# this file again.
+{$OPENCOURT_DOMAIN} {
+    reverse_proxy opencourt-edge:8080
+}
